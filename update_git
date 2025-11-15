@@ -1,0 +1,4 @@
+flutter build web --release --base-href /multiplication_practice/
+git add -f build/web
+git commit -m "Update web build with correct base-href"
+git subtree push --prefix build/web origin gh-pages
