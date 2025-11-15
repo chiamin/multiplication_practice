@@ -475,25 +475,25 @@ class _MultiplicationPracticePageState
             children: [
               _buildOperationCardImage(
                 Operation.add,
-                'assets/icons/add.png',
+                'assets/assets/icons/add.png',
                 '加法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.subtract,
-                'assets/icons/subtract.png',
+                'assets/assets/icons/subtract.png',
                 '減法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.multiply,
-                'assets/icons/multiply.png',
+                'assets/assets/icons/multiply.png',
                 '乘法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.divide,
-                'assets/icons/divide.png',
+                'assets/assets/icons/divide.png',
                 '除法',
                 isTablet,
               ),
@@ -749,7 +749,7 @@ class _MultiplicationPracticePageState
                   tooltip: '送出答案',
                   onTap: _checkAnswer,
                   icon: Image.asset(
-                    'assets/icons/send.png',
+                    'assets/assets/icons/send.png',
                     width: actionIconSize,
                     height: actionIconSize,
                   ),
@@ -761,7 +761,7 @@ class _MultiplicationPracticePageState
                   tooltip: '清除答案',
                   onTap: _clearAnswerField,
                   icon: Image.asset(
-                    'assets/icons/eraser.png',
+                    'assets/assets/icons/eraser.png',
                     width: actionIconSize,
                     height: actionIconSize,
                   ),
@@ -831,7 +831,7 @@ class _MultiplicationPracticePageState
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(),
                         icon: Image.asset(
-                          'assets/icons/eraser.png',
+                          'assets/assets/icons/eraser.png',
                           width: isTablet ? 32 : 26,
                           height: isTablet ? 32 : 26,
                         ),
