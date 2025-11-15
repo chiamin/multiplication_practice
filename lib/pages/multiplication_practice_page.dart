@@ -387,7 +387,7 @@ class _MultiplicationPracticePageState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
+              Image.network(
                 assetPath,
                 width: iconSize,
                 height: iconSize,
@@ -748,7 +748,7 @@ class _MultiplicationPracticePageState
                   isTablet: isTablet,
                   tooltip: '送出答案',
                   onTap: _checkAnswer,
-                  icon: Image.asset(
+                  icon: Image.network(
                     'assets/assets/icons/send.png',
                     width: actionIconSize,
                     height: actionIconSize,
@@ -760,7 +760,7 @@ class _MultiplicationPracticePageState
                   isTablet: isTablet,
                   tooltip: '清除答案',
                   onTap: _clearAnswerField,
-                  icon: Image.asset(
+                  icon: Image.network(
                     'assets/assets/icons/eraser.png',
                     width: actionIconSize,
                     height: actionIconSize,
@@ -830,7 +830,7 @@ class _MultiplicationPracticePageState
                       child: IconButton(
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(),
-                        icon: Image.asset(
+                        icon: Image.network(
                           'assets/assets/icons/eraser.png',
                           width: isTablet ? 32 : 26,
                           height: isTablet ? 32 : 26,
