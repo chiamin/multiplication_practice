@@ -1,4 +1,10 @@
-flutter build web --release --base-href /multiplication_practice/
-git add -f build/web
-git commit -m "Update web build with correct base-href"
-git subtree push --prefix build/web origin gh-pages
+flutter clean
+flutter pub get
+flutter build web --release --base-href /multiplication_practice/ --web-renderer html
+rm build/web/flutter_service_worker.js
+git add .
+git commit -m "Fix icons by using Image.network"
+git subtree split --prefix=build/web -b gh-pages-temp
+git push origin gh-pages-temp:gh-pages --force
+git branch -D gh-pages-temp
+
