@@ -11,23 +11,23 @@ class TestIconApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Icon 測試',
+      title: 'Icon 測試 - network',
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Icon測試'),
+          title: const Text('Icon測試 - network'),
         ),
         body: Center(
           child: Container(
             width: 240,
             height: 240,
-            color: Colors.yellowAccent, // 背景放超明顯
+            color: Colors.yellowAccent,
             alignment: Alignment.center,
-            child: Image.asset(
-              'assets/icons/add.png',
+            child: Image.network(
+              // 注意：這裡直接用「網頁上實際能打開的路徑」
+              'assets/assets/icons/add.png',
               width: 200,
               height: 200,
               fit: BoxFit.contain,
-              // 如果載圖失敗，會顯示一個紅色大錯誤 Icon
               errorBuilder: (context, error, stackTrace) {
                 return const Icon(
                   Icons.error,
