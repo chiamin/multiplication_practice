@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
-import 'pages/multiplication_practice_page.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const TestIconApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class TestIconApp extends StatelessWidget {
+  const TestIconApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '算術練習',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Icon 測試')),
+        body: Center(
+          child: Image.asset(
+            'assets/icons/add.png',
+            width: 200,
+            height: 200,
+          ),
+        ),
       ),
-      home: const MultiplicationPracticePage(),
     );
   }
 }
