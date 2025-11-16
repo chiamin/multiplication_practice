@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 
 import '../models/operation.dart';
 import '../widgets/handwriting_painter.dart';
+import '../widgets/rabbits_celebration.dart';
 
 class MultiplicationPracticePage extends StatefulWidget {
   const MultiplicationPracticePage({super.key});
@@ -32,11 +33,11 @@ class _MultiplicationPracticePageState
   int _digitsB = 1; // 第二個數字的位數：1~9
 
   // 一次要練習幾題
-  int _questionsPerSet = 10;
+  int _questionsPerSet = 5;
   int _answeredCount = 0; // 本組已完成題數
 
   // 選擇的運算種類（預設乘法）
-  Operation _operation = Operation.multiply;
+  Operation _operation = Operation.add;
 
   // 是否在設定頁
   bool _inSettings = true;
@@ -182,7 +183,7 @@ class _MultiplicationPracticePageState
         _messageColor = Colors.green;
       });
 
-      // 播放答對音效 (ding.mp3)
+      // 播放答對音效
       try {
         await _player.play(
           AssetSource('sounds/ding.mp3'),
@@ -202,6 +203,15 @@ class _MultiplicationPracticePageState
         _messageColor = Colors.red;
         _answerController.clear(); // 清掉輸入框，讓下一次輸入直接重打
       });
+
+      // 播放答錯音效
+      try {
+        await _player.play(
+          AssetSource('sounds/eoh.mp3'),
+        );
+      } catch (e) {
+        debugPrint('播放音效錯誤: $e');
+      }
 
       _requestFocus();
     }
@@ -248,48 +258,66 @@ class _MultiplicationPracticePageState
     final size = MediaQuery.of(context).size;
     final bool isTablet = size.shortestSide >= 600;
 
+    // ① 先顯示 4 秒的慶祝動畫（兔子 + cheer 音效）
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,       // 背景保持透明
+      useRootNavigator: true,
+      builder: (_) => RabbitsCelebration(isTablet: isTablet),
+    );
+
+    // ② 等待動畫播完
+    await Future.delayed(const Duration(seconds: 5));
+
+    if (!mounted) return;
+
+    // ③ 關掉剛剛那個慶祝動畫的 dialog
+    Navigator.of(context, rootNavigator: true).pop();
+
+    // ④ 再顯示「本次練習完成」的選項對話框
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-            title: Text(
-                  '本次練習完成',
-                  style: TextStyle(
-                        fontSize: isTablet ? 32 : 24,
-                        fontWeight: FontWeight.bold,
-                  ),
+        title: Text(
+          '本次練習完成',
+          style: TextStyle(
+            fontSize: isTablet ? 32 : 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          '你已完成 $_questionsPerSet 題練習，要再做一組嗎？',
+          style: TextStyle(
+            fontSize: isTablet ? 26 : 20,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(false); // 回到設定
+            },
+            child: Text(
+              '回到設定',
+              style: TextStyle(
+                fontSize: isTablet ? 24 : 18,
+              ),
             ),
-            content: Text(
-                  '你已完成 $_questionsPerSet 題練習，要再做一組嗎？',
-                  style: TextStyle(
-                        fontSize: isTablet ? 26 : 20,
-                  ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop(true); // 再做一組
+            },
+            child: Text(
+              '再做一組',
+              style: TextStyle(
+                fontSize: isTablet ? 26 : 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            actions: [
-                  TextButton(
-                        onPressed: () {
-                              Navigator.of(context).pop(false); // 回到設定
-                        },
-                        child: Text(
-                              '回到設定',
-                              style: TextStyle(
-                                    fontSize: isTablet ? 24 : 18,
-                              ),
-                        ),
-                  ),
-                  FilledButton(
-                        onPressed: () {
-                              Navigator.of(context).pop(true); // 再做一組
-                        },
-                        child: Text(
-                              '再做一組',
-                              style: TextStyle(
-                                    fontSize: isTablet ? 26 : 20,
-                                    fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                  ),
-            ],
+          ),
+        ],
       ),
     );
 
@@ -311,6 +339,7 @@ class _MultiplicationPracticePageState
       });
     }
   }
+
 
   // === 鍵盤大小相關：這三個一起控制 ===
 
@@ -417,7 +446,7 @@ class _MultiplicationPracticePageState
   }) {
     final bool selected = value == selectedValue;
     final double fontSize = isTablet ? 22 : 16;
-    final double size = isTablet ? 80 : 60;
+    final double size = isTablet ? 70 : 55;
 
     return InkWell(
       onTap: onTap,
@@ -775,7 +804,7 @@ class _MultiplicationPracticePageState
               Text(
                 _message,
                 style: TextStyle(
-                  fontSize: isTablet ? 24 : 18,
+                  fontSize: isTablet ? 36 : 18,
                   color: _messageColor,
                 ),
                 textAlign: TextAlign.center,
