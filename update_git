@@ -2,8 +2,11 @@ flutter clean
 flutter pub get
 flutter build web --release --base-href /multiplication_practice/ --web-renderer html
 rm build/web/flutter_service_worker.js
+
 git add .
-git commit -m "Fix icons by using Image.network"
+git add -f build/web
+git commit -m "Deploy latest version"
+
 git subtree split --prefix=build/web -b gh-pages-temp
 git push origin gh-pages-temp:gh-pages --force
 git branch -D gh-pages-temp
