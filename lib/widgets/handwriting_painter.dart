@@ -13,18 +13,19 @@ class HandwritingPainter extends CustomPainter {
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
 
-    for (int i = 0; i < points.length - 1; i++) {
-      final p1 = points[i];
-      final p2 = points[i + 1];
-      if (p1 != null && p2 != null) {
-        canvas.drawLine(p1, p2, paint);
+    Offset? previousPoint;
+    for (final p in points) {
+      if (p != null && previousPoint != null) {
+        canvas.drawLine(previousPoint, p, paint);
       }
+      previousPoint = p;
     }
   }
 
   @override
   bool shouldRepaint(covariant HandwritingPainter oldDelegate) {
-    return oldDelegate.points != points;
+    // 因為 points 的內容一直在變，直接重畫即可
+    return true;
   }
 }
 

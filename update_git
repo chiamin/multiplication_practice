@@ -4,6 +4,9 @@ flutter build web --release --base-href /multiplication_practice/ --web-renderer
 rm build/web/flutter_service_worker.js
 
 git add .
+git commit -m "update"
+git push
+
 git add -f build/web
 git commit -m "Deploy latest version"
 

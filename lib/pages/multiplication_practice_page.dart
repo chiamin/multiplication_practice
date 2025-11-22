@@ -45,6 +45,9 @@ class _MultiplicationPracticePageState
   // 手寫板的點
   final List<Offset?> _points = [];
 
+  // 上一次 onPanUpdate 的時間（毫秒），用來節流，避免太多 setState
+  int _lastPanUpdateMs = 0;
+
   @override
   void dispose() {
     _answerController.dispose();
@@ -834,8 +837,41 @@ class _MultiplicationPracticePageState
                       });
                     },
                     onPanUpdate: (details) {
+                      final now = DateTime.now().millisecondsSinceEpoch;
+
+                      // 1. 節流：限制大約 60fps 以內，不要每一個 event 都 setState
+                      if (now - _lastPanUpdateMs < 16) {
+                        return;
+                      }
+                      _lastPanUpdateMs = now;
+
+                      final localPosition = details.localPosition;
+
+                      // 2. 距離過近就不要再加點（減少 points 數量）
+                      Offset? lastPoint;
+                      for (int i = _points.length - 1; i >= 0; i--) {
+                        final p = _points[i];
+                        if (p != null) {
+                          lastPoint = p;
+                          break;
+                        }
+                      }
+
+                      // 如果和上一個實際的點距離 < 2 像素，就忽略這次更新
+                      if (lastPoint != null &&
+                          (lastPoint - localPosition).distance < 2) {
+                        return;
+                      }
+
                       setState(() {
-                        _points.add(details.localPosition);
+                        _points.add(localPosition);
+
+                        // 3.（可選）限制最多保留的點數，避免一直累積到爆
+                        const int maxPoints = 4000;
+                        if (_points.length > maxPoints) {
+                          final int removeCount = _points.length - maxPoints;
+                          _points.removeRange(0, removeCount);
+                        }
                       });
                     },
                     onPanEnd: (details) {
@@ -843,11 +879,14 @@ class _MultiplicationPracticePageState
                         _points.add(null); // 分隔不同筆畫
                       });
                     },
-                    child: CustomPaint(
-                      painter: HandwritingPainter(_points),
-                      child: Container(), // 撐滿空間
+                    child: RepaintBoundary( // ❹ 讓重繪範圍只在畫布
+                      child: CustomPaint(
+                        painter: HandwritingPainter(_points),
+                        child: Container(), // 撐滿空間
+                      ),
                     ),
                   ),
+
 
                   // 手寫區右上角的清除筆跡按鈕
                   Positioned(
