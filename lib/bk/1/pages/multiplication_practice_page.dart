@@ -1,11 +1,11 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import '../models/operation.dart';
 import '../widgets/handwriting_painter.dart';
-import '../logic/arithmetic_practice_logic.dart';
+import '../widgets/rabbits_celebration.dart';
 
-/// 主畫面：包含「設定練習」與「實際練習」兩個畫面
 class MultiplicationPracticePage extends StatefulWidget {
   const MultiplicationPracticePage({super.key});
 
@@ -16,46 +16,37 @@ class MultiplicationPracticePage extends StatefulWidget {
 
 class _MultiplicationPracticePageState
     extends State<MultiplicationPracticePage> {
-  // 出題與計算正確答案的「純邏輯」物件
-  final ArithmeticPracticeLogic _logic = ArithmeticPracticeLogic();
-
-  // 使用者輸入答案的文字框
+  final Random _random = Random();
   final TextEditingController _answerController = TextEditingController();
   final FocusNode _answerFocus = FocusNode();
 
-  // 當前題目的兩個數字
   late int _a;
   late int _b;
-
-  // 顯示答對／答錯的訊息
   String _message = '';
   Color _messageColor = Colors.black;
 
-  // 音效播放器（播放答對 ding.mp3）
+  // 音效播放器
   final AudioPlayer _player = AudioPlayer();
 
-  // ========= 設定區 =========
+  // 設定：位數
+  int _digitsA = 1; // 第一個數字的位數：1~9
+  int _digitsB = 1; // 第二個數字的位數：1~9
 
-  // 第一個數字的位數（1~9）
-  int _digitsA = 1;
+  // 一次要練習幾題
+  int _questionsPerSet = 5;
+  int _answeredCount = 0; // 本組已完成題數
 
-  // 第二個數字的位數（1~9）
-  int _digitsB = 1;
+  // 選擇的運算種類（預設乘法）
+  Operation _operation = Operation.add;
 
-  // 一組要練習幾題
-  int _questionsPerSet = 10;
-
-  // 本組已作答的題數（答對才會 +1）
-  int _answeredCount = 0;
-
-  // 現在選擇的運算種類（預設：乘法）
-  Operation _operation = Operation.multiply;
-
-  // 是否目前在「設定頁」
+  // 是否在設定頁
   bool _inSettings = true;
 
-  // 手寫區的軌跡點（null 代表分隔不同筆畫）
+  // 手寫板的點
   final List<Offset?> _points = [];
+
+  // 上一次 onPanUpdate 的時間（毫秒），用來節流，避免太多 setState
+  int _lastPanUpdateMs = 0;
 
   @override
   void dispose() {
@@ -65,7 +56,19 @@ class _MultiplicationPracticePageState
     super.dispose();
   }
 
-  /// 目前運算的符號，只是顯示用
+  /// 依照位數產生亂數
+  int _randomNumberWithDigits(int digits) {
+    // 1 位數沿用你原本的 2~9
+    if (digits <= 1) {
+      return 2 + _random.nextInt(8); // 2~9
+    }
+
+    // 2 位數：10~99，3 位數：100~999 ... 直到 9 位數
+    final int min = pow(10, digits - 1).toInt();
+    final int max = pow(10, digits).toInt() - 1;
+    return min + _random.nextInt(max - min + 1);
+  }
+
   String get _operationSymbol {
     switch (_operation) {
       case Operation.add:
@@ -79,30 +82,70 @@ class _MultiplicationPracticePageState
     }
   }
 
-  // ============= 出新題目（用邏輯物件） =============
-
   void _generateNewQuestion() {
     setState(() {
-      final question = _logic.generateQuestion(
-        operation: _operation,
-        digitsA: _digitsA,
-        digitsB: _digitsB,
-      );
-
-      _a = question.a;
-      _b = question.b;
+      switch (_operation) {
+        case Operation.add:
+          _a = _randomNumberWithDigits(_digitsA);
+          _b = _randomNumberWithDigits(_digitsB);
+          break;
+        case Operation.subtract:
+          int x = _randomNumberWithDigits(_digitsA);
+          int y = _randomNumberWithDigits(_digitsB);
+          // 不要出現負數，讓大的數放前面
+          if (x >= y) {
+            _a = x;
+            _b = y;
+          } else {
+            _a = y;
+            _b = x;
+          }
+          break;
+        case Operation.multiply:
+          _a = _randomNumberWithDigits(_digitsA);
+          _b = _randomNumberWithDigits(_digitsB);
+          break;
+        case Operation.divide:
+          _generateDivisionQuestion();
+          break;
+      }
 
       _answerController.clear();
       _message = '';
-      _points.clear(); // 換題時順便把手寫板清掉
+      _points.clear(); // 換題時把手寫板也清掉
     });
   }
 
-  // ============= 檢查答案 =============
+  /// 產生「整數除法」題目，確保 a ÷ b 是整數
+  void _generateDivisionQuestion() {
+    // 位數對應的範圍
+    int minA =
+        _digitsA <= 1 ? 2 : pow(10, _digitsA - 1).toInt(); // 1 位數沿用 2~9
+    int maxA = _digitsA <= 1 ? 9 : pow(10, _digitsA).toInt() - 1;
+    int minB = _digitsB <= 1 ? 2 : pow(10, _digitsB - 1).toInt();
+    int maxB = _digitsB <= 1 ? 9 : pow(10, _digitsB).toInt() - 1;
+
+    const int maxTries = 1000;
+    for (int i = 0; i < maxTries; i++) {
+      final int b = minB + _random.nextInt(maxB - minB + 1);
+      final int q = 2 + _random.nextInt(8); // 商控制在 2~9，比較好算
+      final int a = b * q;
+      if (a >= minA && a <= maxA) {
+        _a = a;
+        _b = b;
+        return;
+      }
+    }
+
+    // 如果上面實在找不到符合位數的，就退一步，用簡單一點的整除
+    final int fallbackB = 2 + _random.nextInt(8);
+    final int fallbackQ = 2 + _random.nextInt(8);
+    _a = fallbackB * fallbackQ;
+    _b = fallbackB;
+  }
 
   Future<void> _checkAnswer() async {
     final text = _answerController.text.trim();
-
     if (text.isEmpty) {
       setState(() {
         _message = '請先輸入答案';
@@ -120,15 +163,24 @@ class _MultiplicationPracticePageState
       return;
     }
 
-    // 用邏輯物件計算正確答案（UI 不自己算）
-    final int correct = _logic.calculateCorrectAnswer(
-      _operation,
-      _a,
-      _b,
-    );
+    // 根據運算種類計算正確答案
+    late final int correct;
+    switch (_operation) {
+      case Operation.add:
+        correct = _a + _b;
+        break;
+      case Operation.subtract:
+        correct = _a - _b;
+        break;
+      case Operation.multiply:
+        correct = _a * _b;
+        break;
+      case Operation.divide:
+        correct = _a ~/ _b; // 一定會整除
+        break;
+    }
 
     if (value == correct) {
-      // 答對
       setState(() {
         _message = '答對了！太棒了 🎉';
         _messageColor = Colors.green;
@@ -136,36 +188,43 @@ class _MultiplicationPracticePageState
 
       // 播放答對音效
       try {
-        await _player.play(AssetSource('sounds/ding.mp3'));
+        await _player.play(
+          AssetSource('sounds/ding.mp3'),
+        );
       } catch (e) {
         debugPrint('播放音效錯誤: $e');
       }
 
-      // 稍微停一下再進下一題或結束
-      await Future.delayed(const Duration(milliseconds: 600));
+      // 答對稍微停一下再進下一題或結束
+      await Future.delayed(const Duration(milliseconds: 1000));
       await _onQuestionFinished();
     } else {
-      // 答錯，不顯示正解
+      final wrong = _answerController.text; // 記住錯誤答案（原樣）
+
       setState(() {
-        _message = '答錯了，再試試 🙈';
+        _message = '不是 $wrong 喔，再試試 🙈';
         _messageColor = Colors.red;
+        _answerController.clear(); // 清掉輸入框，讓下一次輸入直接重打
       });
 
-      // 全選文字，方便重新輸入
-      _answerController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _answerController.text.length,
-      );
+      // 播放答錯音效
+      try {
+        await _player.play(
+          AssetSource('sounds/eoh.mp3'),
+        );
+      } catch (e) {
+        debugPrint('播放音效錯誤: $e');
+      }
+
       _requestFocus();
     }
   }
 
-  /// 把輸入焦點放回答案輸入框
   void _requestFocus() {
     FocusScope.of(context).requestFocus(_answerFocus);
   }
 
-  // 一題結束（通常是答對後）要做的事
+  // 當一題結束（答對）時呼叫
   Future<void> _onQuestionFinished() async {
     setState(() {
       _answeredCount++;
@@ -175,20 +234,19 @@ class _MultiplicationPracticePageState
       // 本組題目完成
       await _showSessionCompletedDialog();
     } else {
-      // 還有題目 → 出下一題
       _generateNewQuestion();
       _requestFocus();
     }
   }
 
-  /// 清除手寫板
+  // 清除手寫板
   void _clearHandwriting() {
     setState(() {
       _points.clear();
     });
   }
 
-  /// 清除答案欄（不換題）
+  // 清除答案欄
   void _clearAnswerField() {
     setState(() {
       _answerController.clear();
@@ -196,28 +254,70 @@ class _MultiplicationPracticePageState
     _requestFocus();
   }
 
-  // 顯示「本次練習完成」對話框
   Future<void> _showSessionCompletedDialog() async {
     if (!mounted) return;
 
+    // 在這裡重新計算 isTablet
+    final size = MediaQuery.of(context).size;
+    final bool isTablet = size.shortestSide >= 600;
+
+    // ① 先顯示 4 秒的慶祝動畫（兔子 + cheer 音效）
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,       // 背景保持透明
+      useRootNavigator: true,
+      builder: (_) => RabbitsCelebration(isTablet: isTablet),
+    );
+
+    // ② 等待動畫播完
+    await Future.delayed(const Duration(seconds: 5));
+
+    if (!mounted) return;
+
+    // ③ 關掉剛剛那個慶祝動畫的 dialog
+    Navigator.of(context, rootNavigator: true).pop();
+
+    // ④ 再顯示「本次練習完成」的選項對話框
     final result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // 不允許點外面關閉
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('本次練習完成'),
-        content: Text('你已完成 $_questionsPerSet 題練習，要再做一組嗎？'),
+        title: Text(
+          '本次練習完成',
+          style: TextStyle(
+            fontSize: isTablet ? 32 : 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          '你已完成 $_questionsPerSet 題練習，要再做一組嗎？',
+          style: TextStyle(
+            fontSize: isTablet ? 26 : 20,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop(false); // 回設定頁
+              Navigator.of(context).pop(false); // 回到設定
             },
-            child: const Text('回到設定'),
+            child: Text(
+              '回到設定',
+              style: TextStyle(
+                fontSize: isTablet ? 24 : 18,
+              ),
+            ),
           ),
           FilledButton(
             onPressed: () {
               Navigator.of(context).pop(true); // 再做一組
             },
-            child: const Text('再做一組',
+            child: Text(
+              '再做一組',
+              style: TextStyle(
+                fontSize: isTablet ? 26 : 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -227,7 +327,7 @@ class _MultiplicationPracticePageState
     if (!mounted) return;
 
     if (result == true) {
-      // 再做一組：保留目前設定，只重置進度與訊息
+      // 再做一組：保留目前設定，只重置進度與題目
       setState(() {
         _answeredCount = 0;
         _message = '';
@@ -243,7 +343,14 @@ class _MultiplicationPracticePageState
     }
   }
 
-  // ================= Scaffold 外框 =================
+
+  // === 鍵盤大小相關：這三個一起控制 ===
+
+  double _keySize(bool isTablet) => isTablet ? 60 : 50; // 按鍵邊長
+  double _digitFontSize(bool isTablet) =>
+      _keySize(isTablet) * 0.5; // 數字大小
+  double _actionIconSize(bool isTablet) =>
+      _keySize(isTablet) * 0.7; // 送出/清除圖示大小
 
   @override
   Widget build(BuildContext context) {
@@ -279,9 +386,7 @@ class _MultiplicationPracticePageState
     );
   }
 
-  // ================= 設定畫面 =================
-
-  /// 四則運算卡片（用你下載的 icon）
+  // 圖片版：四則運算（加、減、乘、除）
   Widget _buildOperationCardImage(
     Operation op,
     String assetPath,
@@ -314,7 +419,7 @@ class _MultiplicationPracticePageState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
+              Image.network(
                 assetPath,
                 width: iconSize,
                 height: iconSize,
@@ -335,7 +440,7 @@ class _MultiplicationPracticePageState
     );
   }
 
-  /// 共用：數字小卡片（位數、題數選擇）
+  // 共用：數字小卡片（位數、題數）
   Widget _buildNumberCard({
     required int value,
     required int selectedValue,
@@ -344,7 +449,7 @@ class _MultiplicationPracticePageState
   }) {
     final bool selected = value == selectedValue;
     final double fontSize = isTablet ? 22 : 16;
-    final double size = isTablet ? 52 : 40;
+    final double size = isTablet ? 70 : 55;
 
     return InkWell(
       onTap: onTap,
@@ -373,7 +478,6 @@ class _MultiplicationPracticePageState
     );
   }
 
-  /// 「設定頁」內容
   Widget _buildSettingsView(bool isTablet) {
     final double labelFontSize = isTablet ? 24 : 18;
     final double buttonFontSize = isTablet ? 24 : 18;
@@ -393,7 +497,7 @@ class _MultiplicationPracticePageState
           ),
           const SizedBox(height: 24),
 
-          // 四則運算選擇（使用你的加減乘除圖示）
+          // 🔹 四則運算選擇（全部用你的 icon）
           Text(
             '要練習的運算',
             style: TextStyle(fontSize: labelFontSize),
@@ -430,7 +534,7 @@ class _MultiplicationPracticePageState
 
           const SizedBox(height: 24),
 
-          // 第一個數字的位數
+          // 🔹 第一個數字的位數（用數字卡片 1~9）
           Text(
             '第一個數字的位數',
             style: TextStyle(fontSize: labelFontSize),
@@ -456,7 +560,7 @@ class _MultiplicationPracticePageState
 
           const SizedBox(height: 24),
 
-          // 第二個數字的位數
+          // 🔹 第二個數字的位數
           Text(
             '第二個數字的位數',
             style: TextStyle(fontSize: labelFontSize),
@@ -482,7 +586,7 @@ class _MultiplicationPracticePageState
 
           const SizedBox(height: 24),
 
-          // 一次要練習幾題
+          // 🔹 一次要練習幾題（數字卡片 5,10,15,20,30）
           Text(
             '一次要練習幾題',
             style: TextStyle(fontSize: labelFontSize),
@@ -507,7 +611,6 @@ class _MultiplicationPracticePageState
 
           const SizedBox(height: 32),
 
-          // 開始練習按鈕
           FilledButton(
             onPressed: () {
               _answeredCount = 0;
@@ -533,20 +636,18 @@ class _MultiplicationPracticePageState
     );
   }
 
-  // ================= 練習畫面 =================
-
-  /// 數字鍵盤的單一數字按鍵（0~9）
+  // 數字鍵盤按鍵
   Widget _buildDigitKey(int digit, bool isTablet) {
-    final double size = isTablet ? 52 : 40;
-    final double fontSize = isTablet ? 24 : 18;
+    final double size = _keySize(isTablet);
+    final double fontSize = _digitFontSize(isTablet);
 
     return InkWell(
       onTap: () {
         setState(() {
           _answerController.text =
               _answerController.text + digit.toString();
-          _answerController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _answerController.text.length),
+          _answerController.selection = TextSelection.collapsed(
+            offset: _answerController.text.length,
           );
         });
         _requestFocus();
@@ -572,14 +673,14 @@ class _MultiplicationPracticePageState
     );
   }
 
-  /// 行為按鍵（送出 / 清除答案）與數字鍵相同尺寸
+  // 行為按鍵（送出 / 清除答案）跟數字一樣大小
   Widget _buildActionKey({
     required bool isTablet,
     required Widget icon,
     required String tooltip,
     required VoidCallback onTap,
   }) {
-    final double size = isTablet ? 52 : 40;
+    final double size = _keySize(isTablet);
 
     return InkWell(
       onTap: onTap,
@@ -601,23 +702,21 @@ class _MultiplicationPracticePageState
     );
   }
 
-  /// 「練習頁」內容
   Widget _buildPracticeView(bool isTablet) {
     final double questionFontSize = isTablet ? 60 : 36;
     final double inputFontSize = isTablet ? 32 : 24;
+    final double actionIconSize = _actionIconSize(isTablet);
 
-    // 顯示用的題號（1-based）
-    final currentIndexForDisplay = (_answeredCount < _questionsPerSet)
-        ? _answeredCount + 1
-        : _questionsPerSet;
+    // 目前是第幾題（畫面顯示用：1-based，但不要超過總題數）
+    final currentIndexForDisplay =
+        (_answeredCount < _questionsPerSet) ? _answeredCount + 1 : _questionsPerSet;
 
-    final progressValue = _questionsPerSet > 0
-        ? _answeredCount / _questionsPerSet
-        : 0.0;
+    final progressValue =
+        _questionsPerSet > 0 ? _answeredCount / _questionsPerSet : 0.0;
 
     return Column(
       children: [
-        // 上半部：進度列 + 題目 + 輸入 + 數字鍵 + 訊息
+        // 上方：進度 + 題目 + 輸入 + 訊息 + 數字鍵盤＋送出/清除
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -658,6 +757,7 @@ class _MultiplicationPracticePageState
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: inputFontSize),
+              enableInteractiveSelection: false,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: '請輸入答案',
@@ -666,7 +766,7 @@ class _MultiplicationPracticePageState
             ),
             const SizedBox(height: 12),
 
-            // 數字鍵盤 0~9 + 送出 + 清除答案
+            // 數字鍵盤 0~9 + 送出 + 清除答案（同一列 Wrap）
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -675,27 +775,27 @@ class _MultiplicationPracticePageState
                 for (int d = 1; d <= 9; d++) _buildDigitKey(d, isTablet),
                 _buildDigitKey(0, isTablet),
 
-                // 送出答案（紙飛機）
+                // 送出（用你的 send.png）
                 _buildActionKey(
                   isTablet: isTablet,
                   tooltip: '送出答案',
                   onTap: _checkAnswer,
-                  icon: Image.asset(
+                  icon: Image.network(
                     'assets/assets/icons/send.png',
-                    width: isTablet ? 28 : 22,
-                    height: isTablet ? 28 : 22,
+                    width: actionIconSize,
+                    height: actionIconSize,
                   ),
                 ),
 
-                // 清除答案（橡皮擦）
+                // 清除答案（用你的 eraser.png）
                 _buildActionKey(
                   isTablet: isTablet,
                   tooltip: '清除答案',
                   onTap: _clearAnswerField,
-                  icon: Image.asset(
+                  icon: Image.network(
                     'assets/assets/icons/eraser.png',
-                    width: isTablet ? 28 : 22,
-                    height: isTablet ? 28 : 22,
+                    width: actionIconSize,
+                    height: actionIconSize,
                   ),
                 ),
               ],
@@ -707,7 +807,7 @@ class _MultiplicationPracticePageState
               Text(
                 _message,
                 style: TextStyle(
-                  fontSize: isTablet ? 24 : 18,
+                  fontSize: isTablet ? 36 : 18,
                   color: _messageColor,
                 ),
                 textAlign: TextAlign.center,
@@ -717,7 +817,7 @@ class _MultiplicationPracticePageState
 
         const SizedBox(height: 12),
 
-        // 下半部：手寫板
+        // 下方：手寫板區域（佔滿剩餘空間），右上角放清除筆跡按鈕
         Expanded(
           child: Container(
             margin: const EdgeInsets.only(top: 8),
@@ -737,8 +837,41 @@ class _MultiplicationPracticePageState
                       });
                     },
                     onPanUpdate: (details) {
+                      final now = DateTime.now().millisecondsSinceEpoch;
+
+                      // 1. 節流：限制大約 60fps 以內，不要每一個 event 都 setState
+                      if (now - _lastPanUpdateMs < 16) {
+                        return;
+                      }
+                      _lastPanUpdateMs = now;
+
+                      final localPosition = details.localPosition;
+
+                      // 2. 距離過近就不要再加點（減少 points 數量）
+                      Offset? lastPoint;
+                      for (int i = _points.length - 1; i >= 0; i--) {
+                        final p = _points[i];
+                        if (p != null) {
+                          lastPoint = p;
+                          break;
+                        }
+                      }
+
+                      // 如果和上一個實際的點距離 < 2 像素，就忽略這次更新
+                      if (lastPoint != null &&
+                          (lastPoint - localPosition).distance < 2) {
+                        return;
+                      }
+
                       setState(() {
-                        _points.add(details.localPosition);
+                        _points.add(localPosition);
+
+                        // 3.（可選）限制最多保留的點數，避免一直累積到爆
+                        const int maxPoints = 4000;
+                        if (_points.length > maxPoints) {
+                          final int removeCount = _points.length - maxPoints;
+                          _points.removeRange(0, removeCount);
+                        }
                       });
                     },
                     onPanEnd: (details) {
@@ -746,13 +879,16 @@ class _MultiplicationPracticePageState
                         _points.add(null); // 分隔不同筆畫
                       });
                     },
-                    child: CustomPaint(
-                      painter: HandwritingPainter(_points),
-                      child: Container(), // 撐滿空間
+                    child: RepaintBoundary( // ❹ 讓重繪範圍只在畫布
+                      child: CustomPaint(
+                        painter: HandwritingPainter(_points),
+                        child: Container(), // 撐滿空間
+                      ),
                     ),
                   ),
 
-                  // 手寫區右上角的「清除筆跡」按鈕
+
+                  // 手寫區右上角的清除筆跡按鈕
                   Positioned(
                     top: 4,
                     right: 4,
@@ -762,10 +898,10 @@ class _MultiplicationPracticePageState
                       child: IconButton(
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(),
-                        icon: Icon(
-                          Icons.cleaning_services,
-                          size: isTablet ? 26 : 22,
-                          color: Colors.brown,
+                        icon: Image.network(
+                          'assets/assets/icons/eraser.png',
+                          width: isTablet ? 32 : 26,
+                          height: isTablet ? 32 : 26,
                         ),
                         tooltip: '清除筆跡',
                         onPressed: _clearHandwriting,
