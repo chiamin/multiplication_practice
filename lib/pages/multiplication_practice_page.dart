@@ -261,7 +261,7 @@ class _MultiplicationPracticePageState
     final size = MediaQuery.of(context).size;
     final bool isTablet = size.shortestSide >= 600;
 
-    // ① 先顯示 4 秒的慶祝動畫（兔子 + cheer 音效）
+    // 1. 先顯示 4 秒的慶祝動畫（兔子 + cheer 音效）
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -270,15 +270,15 @@ class _MultiplicationPracticePageState
       builder: (_) => RabbitsCelebration(isTablet: isTablet),
     );
 
-    // ② 等待動畫播完
+    // 2. 等待動畫播完
     await Future.delayed(const Duration(seconds: 5));
 
     if (!mounted) return;
 
-    // ③ 關掉剛剛那個慶祝動畫的 dialog
+    // 3. 關掉剛剛那個慶祝動畫的 dialog
     Navigator.of(context, rootNavigator: true).pop();
 
-    // ④ 再顯示「本次練習完成」的選項對話框
+    // 4. 再顯示「本次練習完成」的選項對話框
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -346,7 +346,7 @@ class _MultiplicationPracticePageState
 
   // === 鍵盤大小相關：這三個一起控制 ===
 
-  double _keySize(bool isTablet) => isTablet ? 60 : 50; // 按鍵邊長
+  double _keySize(bool isTablet) => isTablet ? 50 : 50; // 按鍵邊長
   double _digitFontSize(bool isTablet) =>
       _keySize(isTablet) * 0.5; // 數字大小
   double _actionIconSize(bool isTablet) =>
@@ -369,7 +369,7 @@ class _MultiplicationPracticePageState
                 },
               )
             : null,
-        title: Text(_inSettings ? '設定練習' : '算術練習'),
+        //title: Text(_inSettings ? '設定練習' : '算術練習'),
         centerTitle: true,
       ),
       body: Center(
@@ -752,6 +752,8 @@ class _MultiplicationPracticePageState
 
             // 答案輸入框
             TextField(
+              readOnly: true,
+              showCursor: false,
               controller: _answerController,
               focusNode: _answerFocus,
               keyboardType: TextInputType.number,
