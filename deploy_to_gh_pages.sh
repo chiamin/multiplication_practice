@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# GitHub Pages 部署腳本
-# 使用 git subtree 方式部署到 gh-pages 分支
+# GitHub Pages 部署腳本（改進版）
+# 使用 git subtree 方式，保持歷史記錄乾淨
 
 set -e  # 遇到錯誤立即退出
 
@@ -21,14 +21,11 @@ echo "🗑️  移除 service worker..."
 rm -f build/web/flutter_service_worker.js
 
 # 4. 提交源代碼更改（如果有）
-echo "💾 檢查源代碼更改..."
+echo "💾 提交源代碼更改..."
 git add .
 if ! git diff --staged --quiet; then
-    git commit -m "Update source code - $(date '+%Y-%m-%d %H:%M:%S')"
+    git commit -m "Update source code"
     git push origin main
-    echo "✅ 源代碼已推送"
-else
-    echo "ℹ️  沒有源代碼更改"
 fi
 
 # 5. 使用 git subtree 推送到 gh-pages 分支
