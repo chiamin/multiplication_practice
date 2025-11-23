@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../models/operation.dart';
 import '../widgets/handwriting_painter.dart';
 import '../widgets/rabbits_celebration.dart';
+import '../utils/image_loader.dart';
 
 class MultiplicationPracticePage extends StatefulWidget {
   const MultiplicationPracticePage({super.key});
@@ -389,7 +390,7 @@ class _MultiplicationPracticePageState
   // 圖片版：四則運算（加、減、乘、除）
   Widget _buildOperationCardImage(
     Operation op,
-    String assetPath,
+    String iconName,
     String label,
     bool isTablet,
   ) {
@@ -419,8 +420,8 @@ class _MultiplicationPracticePageState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.network(
-                assetPath,
+              ImageLoader.loadIcon(
+                iconName: iconName,
                 width: iconSize,
                 height: iconSize,
               ),
@@ -507,25 +508,25 @@ class _MultiplicationPracticePageState
             children: [
               _buildOperationCardImage(
                 Operation.add,
-                'assets/assets/icons/add.png',
+                'add.png',
                 '加法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.subtract,
-                'assets/assets/icons/subtract.png',
+                'subtract.png',
                 '減法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.multiply,
-                'assets/assets/icons/multiply.png',
+                'multiply.png',
                 '乘法',
                 isTablet,
               ),
               _buildOperationCardImage(
                 Operation.divide,
-                'assets/assets/icons/divide.png',
+                'divide.png',
                 '除法',
                 isTablet,
               ),
@@ -782,8 +783,8 @@ class _MultiplicationPracticePageState
                   isTablet: isTablet,
                   tooltip: '送出答案',
                   onTap: _checkAnswer,
-                  icon: Image.network(
-                    'assets/assets/icons/send.png',
+                  icon: ImageLoader.loadIcon(
+                    iconName: 'send.png',
                     width: actionIconSize,
                     height: actionIconSize,
                   ),
@@ -794,8 +795,8 @@ class _MultiplicationPracticePageState
                   isTablet: isTablet,
                   tooltip: '清除答案',
                   onTap: _clearAnswerField,
-                  icon: Image.network(
-                    'assets/assets/icons/eraser.png',
+                  icon: ImageLoader.loadIcon(
+                    iconName: 'eraser.png',
                     width: actionIconSize,
                     height: actionIconSize,
                   ),
@@ -900,8 +901,8 @@ class _MultiplicationPracticePageState
                       child: IconButton(
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(),
-                        icon: Image.network(
-                          'assets/assets/icons/eraser.png',
+                        icon: ImageLoader.loadIcon(
+                          iconName: 'eraser.png',
                           width: isTablet ? 32 : 26,
                           height: isTablet ? 32 : 26,
                         ),

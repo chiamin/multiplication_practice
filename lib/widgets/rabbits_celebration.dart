@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../utils/image_loader.dart';
 
 /// 慶祝畫面小元件：
 /// - 顯示跳跳兔圖片
@@ -66,8 +67,8 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
             ),
           );
         },
-        child: Image.asset(
-          'assets/pictures/rabbits.png',
+        child: ImageLoader.loadPicture(
+          pictureName: 'rabbits.png',
           width: widget.isTablet ? 500 : 300,
         ),
       ),
