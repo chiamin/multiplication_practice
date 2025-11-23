@@ -20,6 +20,13 @@ class _MultiplicationPracticePageState
   final Random _random = Random();
   final TextEditingController _answerController = TextEditingController();
   final FocusNode _answerFocus = FocusNode();
+  
+  // 除法專用：餘數輸入框
+  final TextEditingController _remainderController = TextEditingController();
+  final FocusNode _remainderFocus = FocusNode();
+  
+  // 當前正在編輯的答案框（用於除法）：'quotient' 或 'remainder'
+  String _currentAnswerField = 'quotient';
 
   late int _a;
   late int _b;
@@ -53,6 +60,8 @@ class _MultiplicationPracticePageState
   void dispose() {
     _answerController.dispose();
     _answerFocus.dispose();
+    _remainderController.dispose();
+    _remainderFocus.dispose();
     _player.dispose();
     super.dispose();
   }
@@ -112,12 +121,14 @@ class _MultiplicationPracticePageState
       }
 
       _answerController.clear();
+      _remainderController.clear();
       _message = '';
+      _currentAnswerField = 'quotient'; // 重置為商
       _points.clear(); // 換題時把手寫板也清掉
     });
   }
 
-  /// 產生「整數除法」題目，確保 a ÷ b 是整數
+  /// 產生除法題目（可以有餘數）
   void _generateDivisionQuestion() {
     // 位數對應的範圍
     int minA =
@@ -129,8 +140,9 @@ class _MultiplicationPracticePageState
     const int maxTries = 1000;
     for (int i = 0; i < maxTries; i++) {
       final int b = minB + _random.nextInt(maxB - minB + 1);
-      final int q = 2 + _random.nextInt(8); // 商控制在 2~9，比較好算
-      final int a = b * q;
+      final int q = 1 + _random.nextInt(9); // 商控制在 1~9
+      final int r = _random.nextInt(b); // 餘數：0 到 b-1
+      final int a = b * q + r;
       if (a >= minA && a <= maxA) {
         _a = a;
         _b = b;
@@ -138,14 +150,93 @@ class _MultiplicationPracticePageState
       }
     }
 
-    // 如果上面實在找不到符合位數的，就退一步，用簡單一點的整除
+    // 如果上面實在找不到符合位數的，就退一步，用簡單一點的
     final int fallbackB = 2 + _random.nextInt(8);
-    final int fallbackQ = 2 + _random.nextInt(8);
-    _a = fallbackB * fallbackQ;
+    final int fallbackQ = 1 + _random.nextInt(8);
+    final int fallbackR = _random.nextInt(fallbackB);
+    _a = fallbackB * fallbackQ + fallbackR;
     _b = fallbackB;
   }
 
   Future<void> _checkAnswer() async {
+    // 除法需要檢查商和餘數
+    if (_operation == Operation.divide) {
+      final quotientText = _answerController.text.trim();
+      final remainderText = _remainderController.text.trim();
+      
+      if (quotientText.isEmpty || remainderText.isEmpty) {
+        setState(() {
+          _message = '請輸入商和餘數';
+          _messageColor = Colors.orange;
+        });
+        return;
+      }
+
+      final int? quotient = int.tryParse(quotientText);
+      final int? remainder = int.tryParse(remainderText);
+      
+      if (quotient == null || remainder == null) {
+        setState(() {
+          _message = '請輸入整數喔';
+          _messageColor = Colors.orange;
+        });
+        return;
+      }
+
+      // 檢查餘數是否小於除數
+      if (remainder >= _b) {
+        setState(() {
+          _message = '餘數應該小於除數喔';
+          _messageColor = Colors.orange;
+        });
+        return;
+      }
+
+      final int correctQuotient = _a ~/ _b;
+      final int correctRemainder = _a % _b;
+
+      if (quotient == correctQuotient && remainder == correctRemainder) {
+        setState(() {
+          _message = '答對了！太棒了 🎉';
+          _messageColor = Colors.green;
+        });
+
+        // 播放答對音效
+        try {
+          await _player.play(
+            AssetSource('sounds/ding.mp3'),
+          );
+        } catch (e) {
+          debugPrint('播放音效錯誤: $e');
+        }
+
+        // 答對稍微停一下再進下一題或結束
+        await Future.delayed(const Duration(milliseconds: 1000));
+        await _onQuestionFinished();
+      } else {
+        setState(() {
+          _message = '不對喔，再試試 🙈';
+          _messageColor = Colors.red;
+          _answerController.clear();
+          _remainderController.clear();
+          _currentAnswerField = 'quotient';
+        });
+
+        // 播放答錯音效
+        try {
+          await _player.play(
+            AssetSource('sounds/eoh.mp3'),
+          );
+        } catch (e) {
+          debugPrint('播放音效錯誤: $e');
+        }
+
+        _requestFocus();
+      }
+      return;
+    }
+
+    // 其他運算（加、減、乘）
     final text = _answerController.text.trim();
     if (text.isEmpty) {
       setState(() {
@@ -177,7 +268,8 @@ class _MultiplicationPracticePageState
         correct = _a * _b;
         break;
       case Operation.divide:
-        correct = _a ~/ _b; // 一定會整除
+        // 不會執行到這裡，因為上面已經處理了
+        correct = 0;
         break;
     }
 
@@ -222,7 +314,11 @@ class _MultiplicationPracticePageState
   }
 
   void _requestFocus() {
-    FocusScope.of(context).requestFocus(_answerFocus);
+    if (_operation == Operation.divide && _currentAnswerField == 'remainder') {
+      FocusScope.of(context).requestFocus(_remainderFocus);
+    } else {
+      FocusScope.of(context).requestFocus(_answerFocus);
+    }
   }
 
   // 當一題結束（答對）時呼叫
@@ -251,8 +347,18 @@ class _MultiplicationPracticePageState
   void _clearAnswerField() {
     setState(() {
       _answerController.clear();
+      _remainderController.clear();
+      _currentAnswerField = 'quotient';
     });
     _requestFocus();
+  }
+  
+  // 切換到餘數輸入框（用於除法）
+  void _switchToRemainderField() {
+    setState(() {
+      _currentAnswerField = 'remainder';
+    });
+    FocusScope.of(context).requestFocus(_remainderFocus);
   }
 
   Future<void> _showSessionCompletedDialog() async {
@@ -645,13 +751,34 @@ class _MultiplicationPracticePageState
     return InkWell(
       onTap: () {
         setState(() {
-          _answerController.text =
-              _answerController.text + digit.toString();
-          _answerController.selection = TextSelection.collapsed(
-            offset: _answerController.text.length,
-          );
+          // 除法時，根據當前焦點決定輸入到哪個框
+          if (_operation == Operation.divide) {
+            if (_currentAnswerField == 'remainder') {
+              _remainderController.text =
+                  _remainderController.text + digit.toString();
+              _remainderController.selection = TextSelection.collapsed(
+                offset: _remainderController.text.length,
+              );
+            } else {
+              _answerController.text =
+                  _answerController.text + digit.toString();
+              _answerController.selection = TextSelection.collapsed(
+                offset: _answerController.text.length,
+              );
+            }
+          } else {
+            _answerController.text =
+                _answerController.text + digit.toString();
+            _answerController.selection = TextSelection.collapsed(
+              offset: _answerController.text.length,
+            );
+          }
         });
-        _requestFocus();
+        if (_operation == Operation.divide && _currentAnswerField == 'remainder') {
+          FocusScope.of(context).requestFocus(_remainderFocus);
+        } else {
+          _requestFocus();
+        }
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -703,6 +830,175 @@ class _MultiplicationPracticePageState
     );
   }
 
+  // 建立題目和答案框（內嵌在一起）
+  Widget _buildQuestionWithAnswer(
+    bool isTablet,
+    double questionFontSize,
+    double inputFontSize,
+  ) {
+    // 答案框的寬度
+    final double answerBoxWidth = isTablet ? 120 : 80;
+    final double answerBoxHeight = isTablet ? 60 : 45;
+
+    // 除法：顯示兩個答案框（商和餘數）
+    if (_operation == Operation.divide) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            '$_a $_operationSymbol $_b = ',
+            style: TextStyle(
+              fontSize: questionFontSize,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          // 商答案框
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentAnswerField = 'quotient';
+              });
+              _requestFocus();
+            },
+            child: Container(
+              width: answerBoxWidth,
+              height: answerBoxHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _currentAnswerField == 'quotient'
+                      ? Colors.blue
+                      : Colors.grey,
+                  width: _currentAnswerField == 'quotient' ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: TextField(
+                readOnly: true,
+                showCursor: false,
+                controller: _answerController,
+                focusNode: _answerFocus,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: inputFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+                enableInteractiveSelection: false,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () {
+                  setState(() {
+                    _currentAnswerField = 'quotient';
+                  });
+                },
+                onSubmitted: (_) => _switchToRemainderField(),
+              ),
+            ),
+          ),
+          Text(
+            ' ... ',
+            style: TextStyle(
+              fontSize: questionFontSize,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          // 餘數答案框
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentAnswerField = 'remainder';
+              });
+              FocusScope.of(context).requestFocus(_remainderFocus);
+            },
+            child: Container(
+              width: answerBoxWidth,
+              height: answerBoxHeight,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _currentAnswerField == 'remainder'
+                      ? Colors.blue
+                      : Colors.grey,
+                  width: _currentAnswerField == 'remainder' ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: TextField(
+                readOnly: true,
+                showCursor: false,
+                controller: _remainderController,
+                focusNode: _remainderFocus,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: inputFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+                enableInteractiveSelection: false,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onTap: () {
+                  setState(() {
+                    _currentAnswerField = 'remainder';
+                  });
+                },
+                onSubmitted: (_) => _checkAnswer(),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 其他運算：只顯示一個答案框
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          '$_a $_operationSymbol $_b = ',
+          style: TextStyle(
+            fontSize: questionFontSize,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Container(
+          width: answerBoxWidth,
+          height: answerBoxHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey, width: 1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: TextField(
+            readOnly: true,
+            showCursor: false,
+            controller: _answerController,
+            focusNode: _answerFocus,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: inputFontSize,
+              fontWeight: FontWeight.bold,
+            ),
+            enableInteractiveSelection: false,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onSubmitted: (_) => _checkAnswer(),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPracticeView(bool isTablet) {
     final double questionFontSize = isTablet ? 60 : 36;
     final double inputFontSize = isTablet ? 32 : 24;
@@ -741,32 +1037,8 @@ class _MultiplicationPracticePageState
             ),
             const SizedBox(height: 12),
 
-            // 題目
-            Text(
-              '$_a $_operationSymbol $_b = ?',
-              style: TextStyle(
-                fontSize: questionFontSize,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 答案輸入框
-            TextField(
-              readOnly: true,
-              showCursor: false,
-              controller: _answerController,
-              focusNode: _answerFocus,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: inputFontSize),
-              enableInteractiveSelection: false,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: '請輸入答案',
-              ),
-              onSubmitted: (_) => _checkAnswer(),
-            ),
+            // 題目和答案框（內嵌在一起）
+            _buildQuestionWithAnswer(isTablet, questionFontSize, inputFontSize),
             const SizedBox(height: 12),
 
             // 數字鍵盤 0~9 + 送出 + 清除答案（同一列 Wrap）
