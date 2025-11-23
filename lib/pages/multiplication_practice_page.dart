@@ -203,11 +203,13 @@ class _MultiplicationPracticePageState
 
         // 播放答對音效
         try {
+          // 先停止之前的音效（如果有）
+          await _player.stop();
           await _player.play(
             AssetSource('sounds/ding.mp3'),
           );
         } catch (e) {
-          debugPrint('播放音效錯誤: $e');
+          debugPrint('播放答對音效錯誤: $e');
         }
 
         // 答對稍微停一下再進下一題或結束
@@ -224,11 +226,13 @@ class _MultiplicationPracticePageState
 
         // 播放答錯音效
         try {
+          // 先停止之前的音效（如果有）
+          await _player.stop();
           await _player.play(
             AssetSource('sounds/eoh.mp3'),
           );
         } catch (e) {
-          debugPrint('播放音效錯誤: $e');
+          debugPrint('播放答錯音效錯誤: $e');
         }
 
         _requestFocus();
@@ -281,11 +285,13 @@ class _MultiplicationPracticePageState
 
       // 播放答對音效
       try {
+        // 先停止之前的音效（如果有）
+        await _player.stop();
         await _player.play(
           AssetSource('sounds/ding.mp3'),
         );
       } catch (e) {
-        debugPrint('播放音效錯誤: $e');
+        debugPrint('播放答對音效錯誤: $e');
       }
 
       // 答對稍微停一下再進下一題或結束
@@ -302,11 +308,13 @@ class _MultiplicationPracticePageState
 
       // 播放答錯音效
       try {
+        // 先停止之前的音效（如果有）
+        await _player.stop();
         await _player.play(
           AssetSource('sounds/eoh.mp3'),
         );
       } catch (e) {
-        debugPrint('播放音效錯誤: $e');
+        debugPrint('播放答錯音效錯誤: $e');
       }
 
       _requestFocus();
@@ -368,67 +376,90 @@ class _MultiplicationPracticePageState
     final size = MediaQuery.of(context).size;
     final bool isTablet = size.shortestSide >= 600;
 
-    // 1. 先顯示 4 秒的慶祝動畫（兔子 + cheer 音效）
+    // 1. 先顯示慶祝動畫（兔子 + cheer 音效）
+    // 使用一個變數來追蹤 dialog 是否已經關閉
+    bool celebrationDialogClosed = false;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.transparent,       // 背景保持透明
       useRootNavigator: true,
       builder: (_) => RabbitsCelebration(isTablet: isTablet),
-    );
+    ).then((_) {
+      celebrationDialogClosed = true;
+    });
 
-    // 2. 等待動畫播完
-    await Future.delayed(const Duration(seconds: 5));
+    // 2. 等待動畫播完（4秒）
+    await Future.delayed(const Duration(seconds: 4));
 
     if (!mounted) return;
 
-    // 3. 關掉剛剛那個慶祝動畫的 dialog
-    Navigator.of(context, rootNavigator: true).pop();
+    // 3. 安全地關掉慶祝動畫的 dialog
+    try {
+      // 檢查 dialog 是否還在顯示
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      // 確保 dialog 完全關閉
+      await Future.delayed(const Duration(milliseconds: 100));
+    } catch (e) {
+      debugPrint('關閉慶祝動畫 dialog 錯誤: $e');
+    }
+
+    if (!mounted) return;
 
     // 4. 再顯示「本次練習完成」的選項對話框
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(
-          '本次練習完成',
-          style: TextStyle(
-            fontSize: isTablet ? 32 : 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          '你已完成 $_questionsPerSet 題練習，要再做一組嗎？',
-          style: TextStyle(
-            fontSize: isTablet ? 26 : 20,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(false); // 回到設定
-            },
-            child: Text(
-              '回到設定',
-              style: TextStyle(
-                fontSize: isTablet ? 24 : 18,
-              ),
+      useRootNavigator: true,
+      builder: (context) {
+        // 重新獲取 isTablet（因為 context 可能改變）
+        final dialogSize = MediaQuery.of(context).size;
+        final bool dialogIsTablet = dialogSize.shortestSide >= 600;
+        
+        return AlertDialog(
+          title: Text(
+            '本次練習完成',
+            style: TextStyle(
+              fontSize: dialogIsTablet ? 32 : 24,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop(true); // 再做一組
-            },
-            child: Text(
-              '再做一組',
-              style: TextStyle(
-                fontSize: isTablet ? 26 : 20,
-                fontWeight: FontWeight.bold,
-              ),
+          content: Text(
+            '你已完成 $_questionsPerSet 題練習，要再做一組嗎？',
+            style: TextStyle(
+              fontSize: dialogIsTablet ? 26 : 20,
             ),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false); // 回到設定
+              },
+              child: Text(
+                '回到設定',
+                style: TextStyle(
+                  fontSize: dialogIsTablet ? 24 : 18,
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(true); // 再做一組
+              },
+              child: Text(
+                '再做一組',
+                style: TextStyle(
+                  fontSize: dialogIsTablet ? 26 : 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
 
     if (!mounted) return;
@@ -453,7 +484,7 @@ class _MultiplicationPracticePageState
 
   // === 鍵盤大小相關：這三個一起控制 ===
 
-  double _keySize(bool isTablet) => isTablet ? 50 : 50; // 按鍵邊長
+  double _keySize(bool isTablet) => isTablet ? 80 : 70; // 按鍵邊長（變大了）
   double _digitFontSize(bool isTablet) =>
       _keySize(isTablet) * 0.5; // 數字大小
   double _actionIconSize(bool isTablet) =>
@@ -1041,37 +1072,64 @@ class _MultiplicationPracticePageState
             _buildQuestionWithAnswer(isTablet, questionFontSize, inputFontSize),
             const SizedBox(height: 12),
 
-            // 數字鍵盤 0~9 + 送出 + 清除答案（同一列 Wrap）
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
+            // 數字鍵盤（總共兩行）
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (int d = 1; d <= 9; d++) _buildDigitKey(d, isTablet),
-                _buildDigitKey(0, isTablet),
-
-                // 送出（用你的 send.png）
-                _buildActionKey(
-                  isTablet: isTablet,
-                  tooltip: '送出答案',
-                  onTap: _checkAnswer,
-                  icon: ImageLoader.loadIcon(
-                    iconName: 'send.png',
-                    width: actionIconSize,
-                    height: actionIconSize,
-                  ),
+                // 第一行：1, 2, 3, 4, 5, 送出
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int d = 1; d <= 5; d++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: _buildDigitKey(d, isTablet),
+                      ),
+                    // 送出（用你的 send.png）
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: _buildActionKey(
+                        isTablet: isTablet,
+                        tooltip: '送出答案',
+                        onTap: _checkAnswer,
+                        icon: ImageLoader.loadIcon(
+                          iconName: 'send.png',
+                          width: actionIconSize,
+                          height: actionIconSize,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-
-                // 清除答案（用你的 eraser.png）
-                _buildActionKey(
-                  isTablet: isTablet,
-                  tooltip: '清除答案',
-                  onTap: _clearAnswerField,
-                  icon: ImageLoader.loadIcon(
-                    iconName: 'eraser.png',
-                    width: actionIconSize,
-                    height: actionIconSize,
-                  ),
+                const SizedBox(height: 8),
+                // 第二行：6, 7, 8, 9, 0, 清除
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int d = 6; d <= 9; d++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: _buildDigitKey(d, isTablet),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: _buildDigitKey(0, isTablet),
+                    ),
+                    // 清除答案（用你的 eraser.png）
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: _buildActionKey(
+                        isTablet: isTablet,
+                        tooltip: '清除答案',
+                        onTap: _clearAnswerField,
+                        icon: ImageLoader.loadIcon(
+                          iconName: 'eraser.png',
+                          width: actionIconSize,
+                          height: actionIconSize,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

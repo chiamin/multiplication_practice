@@ -28,8 +28,8 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
   void initState() {
     super.initState();
 
-    // 播放歡呼音效
-    _player.play(AssetSource('sounds/cheer.mp3'));
+    // 播放歡呼音效（使用 await 確保播放）
+    _playCheerSound();
 
     // 跳動動畫
     _controller = AnimationController(
@@ -40,6 +40,16 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
     _offsetAnimation = Tween<double>(begin: 0, end: -20)
         .chain(CurveTween(curve: Curves.easeInOut))
         .animate(_controller);
+  }
+
+  Future<void> _playCheerSound() async {
+    try {
+      // 先停止之前的音效（如果有）
+      await _player.stop();
+      await _player.play(AssetSource('sounds/cheer.mp3'));
+    } catch (e) {
+      debugPrint('播放慶祝音效錯誤: $e');
+    }
   }
 
   @override
