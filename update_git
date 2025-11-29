@@ -2,48 +2,103 @@
 
 # GitHub Pages 部署腳本
 # 使用 git subtree 方式部署到 gh-pages 分支
+# 使用方法: ./update_git
 
 set -e  # 遇到錯誤立即退出
 
-echo "🚀 開始部署到 GitHub Pages..."
+# 顏色定義
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🚀 開始部署到 GitHub Pages...${NC}"
+
+# 檢查是否在正確的目錄
+if [ ! -f "pubspec.yaml" ]; then
+    echo -e "${RED}❌ 錯誤: 請在項目根目錄執行此腳本${NC}"
+    exit 1
+fi
+
+# 檢查 Flutter 是否可用
+if ! command -v flutter &> /dev/null; then
+    echo -e "${RED}❌ 錯誤: Flutter 未安裝或不在 PATH 中${NC}"
+    exit 1
+fi
+
+# 檢查 git 是否可用
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}❌ 錯誤: Git 未安裝或不在 PATH 中${NC}"
+    exit 1
+fi
+
+# 檢查是否在 git 倉庫中
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo -e "${RED}❌ 錯誤: 當前目錄不是 git 倉庫${NC}"
+    exit 1
+fi
 
 # 1. 清理並獲取依賴
-echo "🧹 清理舊構建..."
+echo -e "${YELLOW}🧹 清理舊構建...${NC}"
 flutter clean
 flutter pub get
 
 # 2. 構建 Flutter Web 應用（使用 base-href 以支援 GitHub Pages）
-echo "📦 正在構建 Flutter Web 應用..."
+echo -e "${YELLOW}📦 正在構建 Flutter Web 應用...${NC}"
 flutter build web --release --base-href /multiplication_practice/ --web-renderer html
 
+# 檢查構建是否成功
+if [ ! -d "build/web" ]; then
+    echo -e "${RED}❌ 錯誤: 構建失敗，build/web 目錄不存在${NC}"
+    exit 1
+fi
+
 # 3. 移除 service worker（避免緩存問題）
-echo "🗑️  移除 service worker..."
+echo -e "${YELLOW}🗑️  移除 service worker...${NC}"
 rm -f build/web/flutter_service_worker.js
 
 # 4. 提交源代碼更改（如果有）
-echo "💾 檢查源代碼更改..."
-git add .
-if ! git diff --staged --quiet; then
-    git commit -m "Update source code - $(date '+%Y-%m-%d %H:%M:%S')"
-    git push origin main
-    echo "✅ 源代碼已推送"
+echo -e "${YELLOW}💾 檢查源代碼更改...${NC}"
+# 檢查是否有未提交的更改
+if [ -n "$(git status --porcelain)" ]; then
+    git add .
+    if ! git diff --staged --quiet; then
+        git commit -m "Update source code - $(date '+%Y-%m-%d %H:%M:%S')"
+        git push origin main
+        echo -e "${GREEN}✅ 源代碼已推送${NC}"
+    else
+        echo -e "${YELLOW}ℹ️  沒有源代碼更改需要提交${NC}"
+    fi
 else
-    echo "ℹ️  沒有源代碼更改"
+    echo -e "${YELLOW}ℹ️  沒有源代碼更改${NC}"
 fi
 
 # 5. 使用 git subtree 推送到 gh-pages 分支
-echo "📤 部署到 gh-pages 分支..."
+echo -e "${YELLOW}📤 部署到 gh-pages 分支...${NC}"
+
+# 清理可能存在的臨時分支
+if git show-ref --verify --quiet refs/heads/gh-pages-temp; then
+    git branch -D gh-pages-temp 2>/dev/null || true
+fi
+
 git add -f build/web
 if ! git diff --staged --quiet; then
-    git commit -m "Deploy latest version - $(date '+%Y-%m-%d %H:%M:%S')"
+    git commit -m "Deploy latest version - $(date '+%Y-%m-%d %H:%M:%S')" || true
 fi
 
 # 使用 subtree split 方式推送到 gh-pages
+echo -e "${YELLOW}📦 準備部署文件...${NC}"
 git subtree split --prefix=build/web -b gh-pages-temp
+
+# 推送並清理
+echo -e "${YELLOW}⬆️  推送到 GitHub...${NC}"
 git push origin gh-pages-temp:gh-pages --force
 git branch -D gh-pages-temp
 
-echo "✅ 部署完成！"
-echo "🌐 您的網站應該在幾分鐘後在以下地址可用："
-echo "   https://chiamin.github.io/multiplication_practice/"
+echo ""
+echo -e "${GREEN}✅ 部署完成！${NC}"
+echo -e "${GREEN}🌐 您的網站應該在幾分鐘後在以下地址可用：${NC}"
+echo -e "${BLUE}   https://chiamin.github.io/multiplication_practice/${NC}"
+echo ""
 

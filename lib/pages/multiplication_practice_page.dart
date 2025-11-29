@@ -37,10 +37,10 @@ class _MultiplicationPracticePageState
   final AudioPlayer _player = AudioPlayer();
 
   // 設定：第一個數字的範圍
-  final TextEditingController _minAController = TextEditingController(text: '2');
+  final TextEditingController _minAController = TextEditingController(text: '1');
   final TextEditingController _maxAController = TextEditingController(text: '9');
   // 設定：第二個數字的範圍
-  final TextEditingController _minBController = TextEditingController(text: '2');
+  final TextEditingController _minBController = TextEditingController(text: '1');
   final TextEditingController _maxBController = TextEditingController(text: '9');
 
   // 一次要練習幾題
@@ -89,14 +89,14 @@ class _MultiplicationPracticePageState
 
   /// 獲取第一個數字的範圍（帶驗證）
   (int min, int max) _getRangeA() {
-    final minA = int.tryParse(_minAController.text.trim()) ?? 2;
+    final minA = int.tryParse(_minAController.text.trim()) ?? 1;
     final maxA = int.tryParse(_maxAController.text.trim()) ?? 9;
     return (minA, maxA);
   }
 
   /// 獲取第二個數字的範圍（帶驗證）
   (int min, int max) _getRangeB() {
-    final minB = int.tryParse(_minBController.text.trim()) ?? 2;
+    final minB = int.tryParse(_minBController.text.trim()) ?? 1;
     final maxB = int.tryParse(_maxBController.text.trim()) ?? 9;
     return (minB, maxB);
   }
