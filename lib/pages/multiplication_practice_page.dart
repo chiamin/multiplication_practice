@@ -36,9 +36,12 @@ class _MultiplicationPracticePageState
   // 音效播放器
   final AudioPlayer _player = AudioPlayer();
 
-  // 設定：位數
-  int _digitsA = 1; // 第一個數字的位數：1~9
-  int _digitsB = 1; // 第二個數字的位數：1~9
+  // 設定：第一個數字的範圍
+  final TextEditingController _minAController = TextEditingController(text: '2');
+  final TextEditingController _maxAController = TextEditingController(text: '9');
+  // 設定：第二個數字的範圍
+  final TextEditingController _minBController = TextEditingController(text: '2');
+  final TextEditingController _maxBController = TextEditingController(text: '9');
 
   // 一次要練習幾題
   int _questionsPerSet = 5;
@@ -62,21 +65,40 @@ class _MultiplicationPracticePageState
     _answerFocus.dispose();
     _remainderController.dispose();
     _remainderFocus.dispose();
+    _minAController.dispose();
+    _maxAController.dispose();
+    _minBController.dispose();
+    _maxBController.dispose();
     _player.dispose();
     super.dispose();
   }
 
-  /// 依照位數產生亂數
-  int _randomNumberWithDigits(int digits) {
-    // 1 位數沿用你原本的 2~9
-    if (digits <= 1) {
-      return 2 + _random.nextInt(8); // 2~9
+  /// 從範圍中產生亂數
+  int _randomNumberInRange(int min, int max) {
+    if (min > max) {
+      // 如果最小值大於最大值，交換它們
+      final temp = min;
+      min = max;
+      max = temp;
     }
-
-    // 2 位數：10~99，3 位數：100~999 ... 直到 9 位數
-    final int min = pow(10, digits - 1).toInt();
-    final int max = pow(10, digits).toInt() - 1;
+    if (min == max) {
+      return min;
+    }
     return min + _random.nextInt(max - min + 1);
+  }
+
+  /// 獲取第一個數字的範圍（帶驗證）
+  (int min, int max) _getRangeA() {
+    final minA = int.tryParse(_minAController.text.trim()) ?? 2;
+    final maxA = int.tryParse(_maxAController.text.trim()) ?? 9;
+    return (minA, maxA);
+  }
+
+  /// 獲取第二個數字的範圍（帶驗證）
+  (int min, int max) _getRangeB() {
+    final minB = int.tryParse(_minBController.text.trim()) ?? 2;
+    final maxB = int.tryParse(_maxBController.text.trim()) ?? 9;
+    return (minB, maxB);
   }
 
   String get _operationSymbol {
@@ -94,14 +116,17 @@ class _MultiplicationPracticePageState
 
   void _generateNewQuestion() {
     setState(() {
+      final (minA, maxA) = _getRangeA();
+      final (minB, maxB) = _getRangeB();
+
       switch (_operation) {
         case Operation.add:
-          _a = _randomNumberWithDigits(_digitsA);
-          _b = _randomNumberWithDigits(_digitsB);
+          _a = _randomNumberInRange(minA, maxA);
+          _b = _randomNumberInRange(minB, maxB);
           break;
         case Operation.subtract:
-          int x = _randomNumberWithDigits(_digitsA);
-          int y = _randomNumberWithDigits(_digitsB);
+          int x = _randomNumberInRange(minA, maxA);
+          int y = _randomNumberInRange(minB, maxB);
           // 不要出現負數，讓大的數放前面
           if (x >= y) {
             _a = x;
@@ -112,8 +137,8 @@ class _MultiplicationPracticePageState
           }
           break;
         case Operation.multiply:
-          _a = _randomNumberWithDigits(_digitsA);
-          _b = _randomNumberWithDigits(_digitsB);
+          _a = _randomNumberInRange(minA, maxA);
+          _b = _randomNumberInRange(minB, maxB);
           break;
         case Operation.divide:
           _generateDivisionQuestion();
@@ -130,16 +155,12 @@ class _MultiplicationPracticePageState
 
   /// 產生除法題目（可以有餘數）
   void _generateDivisionQuestion() {
-    // 位數對應的範圍
-    int minA =
-        _digitsA <= 1 ? 2 : pow(10, _digitsA - 1).toInt(); // 1 位數沿用 2~9
-    int maxA = _digitsA <= 1 ? 9 : pow(10, _digitsA).toInt() - 1;
-    int minB = _digitsB <= 1 ? 2 : pow(10, _digitsB - 1).toInt();
-    int maxB = _digitsB <= 1 ? 9 : pow(10, _digitsB).toInt() - 1;
+    final (minA, maxA) = _getRangeA();
+    final (minB, maxB) = _getRangeB();
 
     const int maxTries = 1000;
     for (int i = 0; i < maxTries; i++) {
-      final int b = minB + _random.nextInt(maxB - minB + 1);
+      final int b = _randomNumberInRange(minB, maxB);
       final int q = 1 + _random.nextInt(9); // 商控制在 1~9
       final int r = _random.nextInt(b); // 餘數：0 到 b-1
       final int a = b * q + r;
@@ -150,7 +171,7 @@ class _MultiplicationPracticePageState
       }
     }
 
-    // 如果上面實在找不到符合位數的，就退一步，用簡單一點的
+    // 如果上面實在找不到符合範圍的，就退一步，用簡單一點的
     final int fallbackB = 2 + _random.nextInt(8);
     final int fallbackQ = 1 + _random.nextInt(8);
     final int fallbackR = _random.nextInt(fallbackB);
@@ -672,54 +693,94 @@ class _MultiplicationPracticePageState
 
           const SizedBox(height: 24),
 
-          // 🔹 第一個數字的位數（用數字卡片 1~9）
+          // 🔹 第一個數字的範圍
           Text(
-            '第一個數字的位數',
+            '第一個數字的範圍',
             style: TextStyle(fontSize: labelFontSize),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(9, (i) {
-              final v = i + 1;
-              return _buildNumberCard(
-                value: v,
-                selectedValue: _digitsA,
-                isTablet: isTablet,
-                onTap: () {
-                  setState(() {
-                    _digitsA = v;
-                  });
-                },
-              );
-            }),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _minAController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '最小值',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  style: TextStyle(fontSize: labelFontSize),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '~',
+                style: TextStyle(
+                  fontSize: labelFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: _maxAController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '最大值',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  style: TextStyle(fontSize: labelFontSize),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 24),
 
-          // 🔹 第二個數字的位數
+          // 🔹 第二個數字的範圍
           Text(
-            '第二個數字的位數',
+            '第二個數字的範圍',
             style: TextStyle(fontSize: labelFontSize),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(9, (i) {
-              final v = i + 1;
-              return _buildNumberCard(
-                value: v,
-                selectedValue: _digitsB,
-                isTablet: isTablet,
-                onTap: () {
-                  setState(() {
-                    _digitsB = v;
-                  });
-                },
-              );
-            }),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _minBController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '最小值',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  style: TextStyle(fontSize: labelFontSize),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '~',
+                style: TextStyle(
+                  fontSize: labelFontSize,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: _maxBController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '最大值',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  style: TextStyle(fontSize: labelFontSize),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 24),
