@@ -78520,7 +78520,7 @@ this.Z5()},
 J(a){var s,r=null,q=this.e
 q===$&&A.a()
 s=this.a.c?700:450
-return A.mw(A.mj(q,new A.aey(this),new A.pB(A.apr(r,r,new A.tM("assets/pictures/celebrate.png",r,r)),r,s,r,B.zw,r)),r,r)}}
+return A.mw(A.mj(q,new A.aey(this),new A.pB(A.apr(r,r,new A.tM("assets/pictures/celebrate2.png",r,r)),r,s,r,B.zw,r)),r,r)}}
 A.aey.prototype={
 $2(a,b){var s,r,q=this.a.e
 q===$&&A.a()
