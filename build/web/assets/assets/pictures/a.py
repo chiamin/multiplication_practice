@@ -1,7 +1,7 @@
 import numpy as np
 from PIL import Image
 
-def remove_background(input_path: str, output_path: str, tolerance: int = 25):
+def remove_background(input_path: str, output_path: str, proof_path: str, tolerance: int = 30):
     """
     將圖片背景變透明，只針對「接近背景顏色」的像素做處理，不會把前景顏色去掉。
 
@@ -36,13 +36,20 @@ def remove_background(input_path: str, output_path: str, tolerance: int = 25):
     final_img = Image.fromarray(data)
     final_img.save(output_path)
 
+    # 6. 產生黃色背景的檢查圖
+    yellow_bg = Image.new("RGBA", final_img.size, (255, 230, 0, 255))
+    proof_img = Image.alpha_composite(yellow_bg, final_img)
+    proof_img.save(proof_path)
+
 
 if __name__ == "__main__":
     # 這裡改成處理 celebrate2.png
     input_file = "celebrate2.png"
     output_file = "celebrate2_transparent.png"
+    proof_file = "celebrate2_proof_preview.png"
 
     # tolerance 可以依照實際效果調整（例如 20, 25, 30）
-    remove_background(input_file, output_file, tolerance=25)
+    remove_background(input_file, output_file, proof_file, tolerance=30)
 
     print(f"完成！去背後的圖片已儲存為: {output_file}")
+    print(f"檢查用的黃色背景圖片已儲存為: {proof_file}")
