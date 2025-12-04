@@ -1,40 +1,48 @@
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 
-# 1. 讀取原始圖片
-image_path = "celebrate.png"
-img = Image.open(image_path).convert("RGBA")
-data = np.array(img)
+def remove_background(input_path: str, output_path: str, tolerance: int = 25):
+    """
+    將圖片背景變透明，只針對「接近背景顏色」的像素做處理，不會把前景顏色去掉。
 
-# 2. 強力去背邏輯 (Threshold)
-# 轉灰階
-gray = np.mean(data[:, :, :3], axis=2)
+    參數：
+    - input_path: 原始 PNG 檔名（含路徑）
+    - output_path: 去背後 PNG 檔名（含路徑）
+    - tolerance: 容許顏色差距 (0~255)，數字越大，去背範圍越廣
+    """
+    # 1. 讀取圖片（確保有 Alpha 通道）
+    img = Image.open(input_path).convert("RGBA")
+    data = np.array(img)
 
-# 設定嚴格的門檻：只有亮度小於 140 (接近黑色) 的像素才保留
-# 灰白格子通常亮度都在 200 以上，這樣可以確保它們被刪掉
-threshold = 140
+    # 2. 從四個角落估計「背景顏色」
+    h, w, _ = data.shape
+    corner_pixels = np.vstack([
+        data[0, 0, :3],          # 左上
+        data[0, w - 1, :3],      # 右上
+        data[h - 1, 0, :3],      # 左下
+        data[h - 1, w - 1, :3],  # 右下
+    ])
+    bg_color = corner_pixels.mean(axis=0)  # 取平均當作背景顏色 (R,G,B)
 
-# 建立遮罩：黑色線條保留 (255)，其他全變透明 (0)
-alpha = np.where(gray < threshold, 255, 0).astype(np.uint8)
+    # 3. 計算每個像素與背景色的距離（在 RGB 空間）
+    rgb = data[:, :, :3].astype(np.float32)
+    diff = np.linalg.norm(rgb - bg_color, axis=2)  # 每個像素與背景色的距離
 
-# 為了線條好看，將保留下來的像素全部設為「純黑」
-data[:, :, 0] = 0
-data[:, :, 1] = 0
-data[:, :, 2] = 0
-data[:, :, 3] = alpha
+    # 4. 建立遮罩：距離小於 tolerance 的視為背景 → 變透明
+    bg_mask = diff < tolerance
+    data[:, :, 3][bg_mask] = 0  # Alpha 設為 0（透明）
 
-# 建立最終的透明 PNG
-final_transparent_img = Image.fromarray(data)
-final_output_path = "celebrate_final_clean.png"
-final_transparent_img.save(final_output_path)
+    # 5. 儲存去背後 PNG
+    final_img = Image.fromarray(data)
+    final_img.save(output_path)
 
-# 3. 製作驗證圖 (Proof)
-# 建立一個黃色的背景
-yellow_bg = Image.new("RGBA", final_transparent_img.size, (255, 230, 0, 255))
-# 把去背後的圖貼上去
-proof_img = Image.alpha_composite(yellow_bg, final_transparent_img)
-proof_output_path = "celebrate_proof_preview.png"
-proof_img.save(proof_output_path)
 
-print(f"Clean PNG saved to: {final_output_path}")
-print(f"Proof image saved to: {proof_output_path}")
+if __name__ == "__main__":
+    # 這裡改成處理 celebrate2.png
+    input_file = "celebrate2.png"
+    output_file = "celebrate2_transparent.png"
+
+    # tolerance 可以依照實際效果調整（例如 20, 25, 30）
+    remove_background(input_file, output_file, tolerance=25)
+
+    print(f"完成！去背後的圖片已儲存為: {output_file}")
