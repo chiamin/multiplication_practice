@@ -77,9 +77,10 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
             ),
           );
         },
-        child: ImageLoader.loadPicture(
-          pictureName: 'celebrate.png',
+        child: Image.asset(
+          'assets/pictures/celebrate.png',
           width: widget.isTablet ? 700 : 450,
+          fit: BoxFit.contain,
         ),
       ),
     );
