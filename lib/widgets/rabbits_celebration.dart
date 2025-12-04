@@ -78,7 +78,7 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
           );
         },
         child: Image.asset(
-          'assets/pictures/celebrate2.png',
+          'assets/pictures/celebrate2_transparent.png',
           width: widget.isTablet ? 700 : 450,
           fit: BoxFit.contain,
         ),
