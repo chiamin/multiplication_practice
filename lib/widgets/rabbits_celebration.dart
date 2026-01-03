@@ -28,6 +28,8 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
   void initState() {
     super.initState();
 
+    debugPrint('🎊 RabbitsCelebration initState: 開始初始化動畫');
+
     // 播放歡呼音效（使用 await 確保播放）
     _playCheerSound();
 
@@ -40,15 +42,19 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
     _offsetAnimation = Tween<double>(begin: 0, end: -20)
         .chain(CurveTween(curve: Curves.easeInOut))
         .animate(_controller);
+
+    debugPrint('✅ RabbitsCelebration 動畫控制器已啟動');
   }
 
   Future<void> _playCheerSound() async {
     try {
+      debugPrint('🔊 開始播放慶祝音效');
       // 先停止之前的音效（如果有）
       await _player.stop();
       await _player.play(AssetSource('sounds/cheer.mp3'));
+      debugPrint('✅ 慶祝音效播放成功');
     } catch (e) {
-      debugPrint('播放慶祝音效錯誤: $e');
+      debugPrint('❌ 播放慶祝音效錯誤: $e');
     }
   }
 
@@ -77,8 +83,8 @@ class _RabbitsCelebrationState extends State<RabbitsCelebration>
             ),
           );
         },
-        child: Image.asset(
-          'assets/pictures/celebrate2_transparent.png',
+        child: ImageLoader.loadPicture(
+          pictureName: 'celebrate2_transparent.png',
           width: widget.isTablet ? 700 : 450,
           fit: BoxFit.contain,
         ),

@@ -59,6 +59,31 @@ class _MultiplicationPracticePageState
   // 上一次 onPanUpdate 的時間（毫秒），用來節流，避免太多 setState
   int _lastPanUpdateMs = 0;
 
+  /// 播放音效
+  Future<void> _playSound(String soundFile) async {
+    try {
+      await _player.stop();
+      await _player.play(AssetSource('sounds/$soundFile'));
+    } catch (e) {
+      debugPrint('播放音效錯誤: $e');
+    }
+  }
+
+  /// 設定訊息
+  void _setMessage(String message, Color color) {
+    setState(() {
+      _message = message;
+      _messageColor = color;
+    });
+  }
+
+  /// 清除訊息
+  void _clearMessage() {
+    setState(() {
+      _message = '';
+    });
+  }
+
   @override
   void dispose() {
     _answerController.dispose();
@@ -125,15 +150,17 @@ class _MultiplicationPracticePageState
           _b = _randomNumberInRange(minB, maxB);
           break;
         case Operation.subtract:
-          int x = _randomNumberInRange(minA, maxA);
-          int y = _randomNumberInRange(minB, maxB);
-          // 不要出現負數，讓大的數放前面
-          if (x >= y) {
-            _a = x;
-            _b = y;
+          // 減法：確保 _a >= _b（避免負數），同時 _a 在範圍A，_b 在範圍B
+          // 先選 _b（從範圍B），然後選 _a（從範圍A，但確保 _a >= _b）
+          _b = _randomNumberInRange(minB, maxB);
+          final int effectiveMinA = (minA > _b) ? minA : _b;
+          if (effectiveMinA > maxA) {
+            // 如果範圍A的最大值都小於範圍B的值，無法生成有效題目
+            // 退而求其次：讓 _a 盡量大，_b 盡量小（但仍在各自範圍內）
+            _a = maxA;
+            _b = minB.clamp(minB, (_a < maxB) ? _a : maxB);
           } else {
-            _a = y;
-            _b = x;
+            _a = _randomNumberInRange(effectiveMinA, maxA);
           }
           break;
         case Operation.multiply:
@@ -147,7 +174,7 @@ class _MultiplicationPracticePageState
 
       _answerController.clear();
       _remainderController.clear();
-      _message = '';
+      _clearMessage();
       _currentAnswerField = 'quotient'; // 重置為商
       _points.clear(); // 換題時把手寫板也清掉
     });
@@ -161,9 +188,35 @@ class _MultiplicationPracticePageState
     const int maxTries = 1000;
     for (int i = 0; i < maxTries; i++) {
       final int b = _randomNumberInRange(minB, maxB);
-      final int q = 1 + _random.nextInt(9); // 商控制在 1~9
+      
+      // 根據範圍計算商的合理範圍
+      // a = b * q + r，其中 0 <= r < b
+      // 所以：b * q <= a < b * (q + 1)
+      // 要讓 a 在 [minA, maxA] 範圍內，需要：
+      // minA <= b * q + r <= maxA，其中 r < b
+      // 因此：minA <= b * q + (b-1) 且 b * q <= maxA
+      // 所以：q >= ceil((minA - (b-1)) / b) 且 q <= floor(maxA / b)
+      
+      // 計算商的最小值：為了讓 a >= minA，需要 b * q >= minA - (b-1)
+      // 但考慮餘數最大是 b-1，所以 b * q 至少要是 minA - (b-1)
+      // 使用 ceil 計算：ceil((minA - (b-1)) / b)，但確保至少是 1
+      final int numerator = minA - (b - 1);
+      final int minQ = (numerator <= 0) 
+          ? 1 
+          : ((numerator + b - 1) ~/ b).clamp(1, 999); // ceil 的實現：(x + b - 1) ~/ b
+      // 計算商的最大值：為了讓 a <= maxA，需要 b * q <= maxA（因為 r >= 0）
+      final int maxQ = (maxA ~/ b).clamp(1, 999);
+      
+      // 如果沒有合理的商範圍，跳過這次嘗試
+      if (minQ > maxQ) {
+        continue;
+      }
+      
+      final int q = _randomNumberInRange(minQ, maxQ);
       final int r = _random.nextInt(b); // 餘數：0 到 b-1
       final int a = b * q + r;
+      
+      // 再次確認 a 在範圍內（應該總是符合，但為了安全還是檢查）
       if (a >= minA && a <= maxA) {
         _a = a;
         _b = b;
@@ -171,12 +224,31 @@ class _MultiplicationPracticePageState
       }
     }
 
-    // 如果上面實在找不到符合範圍的，就退一步，用簡單一點的
-    final int fallbackB = 2 + _random.nextInt(8);
-    final int fallbackQ = 1 + _random.nextInt(8);
-    final int fallbackR = _random.nextInt(fallbackB);
-    _a = fallbackB * fallbackQ + fallbackR;
-    _b = fallbackB;
+    // 如果上面實在找不到符合範圍的，嘗試反向生成：先選 a，再選 b
+    for (int i = 0; i < maxTries; i++) {
+      final int a = _randomNumberInRange(minA, maxA);
+      // 確保 b <= a（這樣商至少是 1），且 b 在範圍B內
+      final int maxBForA = (maxB < a) ? maxB : a;
+      if (maxBForA < minB) {
+        continue; // 無法找到符合條件的 b
+      }
+      final int b = _randomNumberInRange(minB, maxBForA);
+      
+      // 再次確認 a 和 b 都在各自範圍內（應該總是符合）
+      if (a >= minA && a <= maxA && b >= minB && b <= maxB) {
+        _a = a;
+        _b = b;
+        return;
+      }
+    }
+
+    // 最後的 fallback：確保 _a 和 _b 都在各自範圍內，且 _a >= _b
+    _a = minA.clamp(minA, maxA);
+    _b = minB.clamp(minB, maxB);
+    // 確保 _a >= _b
+    if (_a < _b) {
+      _a = _b.clamp(minA, maxA);
+    }
   }
 
   Future<void> _checkAnswer() async {
@@ -186,10 +258,7 @@ class _MultiplicationPracticePageState
       final remainderText = _remainderController.text.trim();
       
       if (quotientText.isEmpty || remainderText.isEmpty) {
-        setState(() {
-          _message = '請輸入商和餘數';
-          _messageColor = Colors.orange;
-        });
+        _setMessage('請輸入商和餘數', Colors.orange);
         return;
       }
 
@@ -197,19 +266,13 @@ class _MultiplicationPracticePageState
       final int? remainder = int.tryParse(remainderText);
       
       if (quotient == null || remainder == null) {
-        setState(() {
-          _message = '請輸入整數喔';
-          _messageColor = Colors.orange;
-        });
+        _setMessage('請輸入整數喔', Colors.orange);
         return;
       }
 
       // 檢查餘數是否小於除數
       if (remainder >= _b) {
-        setState(() {
-          _message = '餘數應該小於除數喔';
-          _messageColor = Colors.orange;
-        });
+        _setMessage('餘數應該小於除數喔', Colors.orange);
         return;
       }
 
@@ -217,23 +280,8 @@ class _MultiplicationPracticePageState
       final int correctRemainder = _a % _b;
 
       if (quotient == correctQuotient && remainder == correctRemainder) {
-        setState(() {
-          _message = '答對了！太棒了 🎉';
-          _messageColor = Colors.green;
-        });
-
-        // 播放答對音效
-        try {
-          // 先停止之前的音效（如果有）
-          await _player.stop();
-          await _player.play(
-            AssetSource('sounds/ding.mp3'),
-          );
-        } catch (e) {
-          debugPrint('播放答對音效錯誤: $e');
-        }
-
-        // 答對稍微停一下再進下一題或結束
+        _setMessage('答對了！太棒了 🎉', Colors.green);
+        await _playSound('ding.mp3');
         await Future.delayed(const Duration(milliseconds: 1000));
         await _onQuestionFinished();
       } else {
@@ -244,18 +292,7 @@ class _MultiplicationPracticePageState
           _remainderController.clear();
           _currentAnswerField = 'quotient';
         });
-
-        // 播放答錯音效
-        try {
-          // 先停止之前的音效（如果有）
-          await _player.stop();
-          await _player.play(
-            AssetSource('sounds/eoh.mp3'),
-          );
-        } catch (e) {
-          debugPrint('播放答錯音效錯誤: $e');
-        }
-
+        await _playSound('eoh.mp3');
         _requestFocus();
       }
       return;
@@ -264,80 +301,37 @@ class _MultiplicationPracticePageState
     // 其他運算（加、減、乘）
     final text = _answerController.text.trim();
     if (text.isEmpty) {
-      setState(() {
-        _message = '請先輸入答案';
-        _messageColor = Colors.orange;
-      });
+      _setMessage('請先輸入答案', Colors.orange);
       return;
     }
 
     final int? value = int.tryParse(text);
     if (value == null) {
-      setState(() {
-        _message = '請輸入整數喔';
-        _messageColor = Colors.orange;
-      });
+      _setMessage('請輸入整數喔', Colors.orange);
       return;
     }
 
     // 根據運算種類計算正確答案
-    late final int correct;
-    switch (_operation) {
-      case Operation.add:
-        correct = _a + _b;
-        break;
-      case Operation.subtract:
-        correct = _a - _b;
-        break;
-      case Operation.multiply:
-        correct = _a * _b;
-        break;
-      case Operation.divide:
-        // 不會執行到這裡，因為上面已經處理了
-        correct = 0;
-        break;
-    }
+    final int correct = switch (_operation) {
+      Operation.add => _a + _b,
+      Operation.subtract => _a - _b,
+      Operation.multiply => _a * _b,
+      Operation.divide => throw StateError('除法應該在上面已經處理'),
+    };
 
     if (value == correct) {
-      setState(() {
-        _message = '答對了！太棒了 🎉';
-        _messageColor = Colors.green;
-      });
-
-      // 播放答對音效
-      try {
-        // 先停止之前的音效（如果有）
-        await _player.stop();
-        await _player.play(
-          AssetSource('sounds/ding.mp3'),
-        );
-      } catch (e) {
-        debugPrint('播放答對音效錯誤: $e');
-      }
-
-      // 答對稍微停一下再進下一題或結束
+      _setMessage('答對了！太棒了 🎉', Colors.green);
+      await _playSound('ding.mp3');
       await Future.delayed(const Duration(milliseconds: 1000));
       await _onQuestionFinished();
     } else {
       final wrong = _answerController.text; // 記住錯誤答案（原樣）
-
       setState(() {
         _message = '不是 $wrong 喔，再試試 🙈';
         _messageColor = Colors.red;
         _answerController.clear(); // 清掉輸入框，讓下一次輸入直接重打
       });
-
-      // 播放答錯音效
-      try {
-        // 先停止之前的音效（如果有）
-        await _player.stop();
-        await _player.play(
-          AssetSource('sounds/eoh.mp3'),
-        );
-      } catch (e) {
-        debugPrint('播放答錯音效錯誤: $e');
-      }
-
+      await _playSound('eoh.mp3');
       _requestFocus();
     }
   }
@@ -393,44 +387,61 @@ class _MultiplicationPracticePageState
   Future<void> _showSessionCompletedDialog() async {
     if (!mounted) return;
 
+    debugPrint('🎉 開始顯示慶祝動畫，已完成題數: $_answeredCount / $_questionsPerSet');
+
     // 在這裡重新計算 isTablet
     final size = MediaQuery.of(context).size;
     final bool isTablet = size.shortestSide >= 600;
 
     // 1. 先顯示慶祝動畫（兔子 + cheer 音效）
-    // 使用一個變數來追蹤 dialog 是否已經關閉
-    bool celebrationDialogClosed = false;
-    
+    // 不 await showDialog，因為它會在 dialog 關閉時才完成
+    // 我們需要立即繼續執行，等待4秒後再關閉
     showDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.transparent,       // 背景保持透明
       useRootNavigator: true,
-      builder: (_) => RabbitsCelebration(isTablet: isTablet),
-    ).then((_) {
-      celebrationDialogClosed = true;
-    });
+      builder: (_) {
+        debugPrint('🎬 正在構建 RabbitsCelebration widget');
+        return RabbitsCelebration(isTablet: isTablet);
+      },
+    );
 
-    // 2. 等待動畫播完（4秒）
+    // 2. 等待一幀，確保 dialog 已經顯示
+    // 使用 SchedulerBinding 確保下一幀已經渲染
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (mounted) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    
+    if (!mounted) return;
+    
+    debugPrint('⏳ 等待動畫播放 4 秒...');
+
+    // 3. 等待動畫播完（4秒）
     await Future.delayed(const Duration(seconds: 4));
 
     if (!mounted) return;
 
-    // 3. 安全地關掉慶祝動畫的 dialog
+    // 4. 安全地關掉慶祝動畫的 dialog
+    debugPrint('🔚 準備關閉慶祝動畫 dialog');
     try {
       // 檢查 dialog 是否還在顯示
       if (Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
+        debugPrint('✅ 慶祝動畫 dialog 已關閉');
+      } else {
+        debugPrint('⚠️ 無法關閉 dialog，可能已經關閉');
       }
       // 確保 dialog 完全關閉
       await Future.delayed(const Duration(milliseconds: 100));
     } catch (e) {
-      debugPrint('關閉慶祝動畫 dialog 錯誤: $e');
+      debugPrint('❌ 關閉慶祝動畫 dialog 錯誤: $e');
     }
 
     if (!mounted) return;
 
-    // 4. 再顯示「本次練習完成」的選項對話框
+    // 5. 再顯示「本次練習完成」的選項對話框
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -489,16 +500,16 @@ class _MultiplicationPracticePageState
       // 再做一組：保留目前設定，只重置進度與題目
       setState(() {
         _answeredCount = 0;
-        _message = '';
       });
+      _clearMessage();
       _generateNewQuestion();
       _requestFocus();
     } else {
       // 回到設定頁
       setState(() {
         _inSettings = true;
-        _message = '';
       });
+      _clearMessage();
     }
   }
 
@@ -599,6 +610,63 @@ class _MultiplicationPracticePageState
     );
   }
 
+  // 範圍輸入框（最小值～最大值）
+  Widget _buildRangeInput({
+    required TextEditingController minController,
+    required TextEditingController maxController,
+    required String label,
+    required bool isTablet,
+  }) {
+    final double fontSize = isTablet ? 24 : 18;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: fontSize),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: minController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '最小值',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                style: TextStyle(fontSize: fontSize),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              '~',
+              style: TextStyle(
+                fontSize: fontSize,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                controller: maxController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '最大值',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                style: TextStyle(fontSize: fontSize),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   // 共用：數字小卡片（位數、題數）
   Widget _buildNumberCard({
     required int value,
@@ -694,93 +762,21 @@ class _MultiplicationPracticePageState
           const SizedBox(height: 24),
 
           // 🔹 第一個數字的範圍
-          Text(
-            '第一個數字的範圍',
-            style: TextStyle(fontSize: labelFontSize),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _minAController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: '最小值',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  style: TextStyle(fontSize: labelFontSize),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                '~',
-                style: TextStyle(
-                  fontSize: labelFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: _maxAController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: '最大值',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  style: TextStyle(fontSize: labelFontSize),
-                ),
-              ),
-            ],
+          _buildRangeInput(
+            minController: _minAController,
+            maxController: _maxAController,
+            label: '第一個數字的範圍',
+            isTablet: isTablet,
           ),
 
           const SizedBox(height: 24),
 
           // 🔹 第二個數字的範圍
-          Text(
-            '第二個數字的範圍',
-            style: TextStyle(fontSize: labelFontSize),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _minBController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: '最小值',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  style: TextStyle(fontSize: labelFontSize),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                '~',
-                style: TextStyle(
-                  fontSize: labelFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: _maxBController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: '最大值',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  style: TextStyle(fontSize: labelFontSize),
-                ),
-              ),
-            ],
+          _buildRangeInput(
+            minController: _minBController,
+            maxController: _maxBController,
+            label: '第二個數字的範圍',
+            isTablet: isTablet,
           ),
 
           const SizedBox(height: 24),
@@ -835,6 +831,14 @@ class _MultiplicationPracticePageState
     );
   }
 
+  /// 將數字追加到指定的控制器
+  void _appendDigitToController(TextEditingController controller, int digit) {
+    controller.text = controller.text + digit.toString();
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+  }
+
   // 數字鍵盤按鍵
   Widget _buildDigitKey(int digit, bool isTablet) {
     final double size = _keySize(isTablet);
@@ -844,26 +848,10 @@ class _MultiplicationPracticePageState
       onTap: () {
         setState(() {
           // 除法時，根據當前焦點決定輸入到哪個框
-          if (_operation == Operation.divide) {
-            if (_currentAnswerField == 'remainder') {
-              _remainderController.text =
-                  _remainderController.text + digit.toString();
-              _remainderController.selection = TextSelection.collapsed(
-                offset: _remainderController.text.length,
-              );
-            } else {
-              _answerController.text =
-                  _answerController.text + digit.toString();
-              _answerController.selection = TextSelection.collapsed(
-                offset: _answerController.text.length,
-              );
-            }
+          if (_operation == Operation.divide && _currentAnswerField == 'remainder') {
+            _appendDigitToController(_remainderController, digit);
           } else {
-            _answerController.text =
-                _answerController.text + digit.toString();
-            _answerController.selection = TextSelection.collapsed(
-              offset: _answerController.text.length,
-            );
+            _appendDigitToController(_answerController, digit);
           }
         });
         if (_operation == Operation.divide && _currentAnswerField == 'remainder') {
@@ -922,6 +910,35 @@ class _MultiplicationPracticePageState
     );
   }
 
+  /// 建立答案框的 TextField
+  Widget _buildAnswerTextField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required double fontSize,
+    required VoidCallback? onTap,
+    required VoidCallback? onSubmitted,
+  }) {
+    return TextField(
+      readOnly: true,
+      showCursor: false,
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+      ),
+      enableInteractiveSelection: false,
+      decoration: const InputDecoration(
+        border: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
+      ),
+      onTap: onTap,
+      onSubmitted: onSubmitted != null ? (_) => onSubmitted() : null,
+    );
+  }
+
   // 建立題目和答案框（內嵌在一起）
   Widget _buildQuestionWithAnswer(
     bool isTablet,
@@ -966,28 +983,16 @@ class _MultiplicationPracticePageState
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: TextField(
-                readOnly: true,
-                showCursor: false,
+              child: _buildAnswerTextField(
                 controller: _answerController,
                 focusNode: _answerFocus,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: inputFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
-                enableInteractiveSelection: false,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
+                fontSize: inputFontSize,
                 onTap: () {
                   setState(() {
                     _currentAnswerField = 'quotient';
                   });
                 },
-                onSubmitted: (_) => _switchToRemainderField(),
+                onSubmitted: _switchToRemainderField,
               ),
             ),
           ),
@@ -1019,28 +1024,16 @@ class _MultiplicationPracticePageState
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: TextField(
-                readOnly: true,
-                showCursor: false,
+              child: _buildAnswerTextField(
                 controller: _remainderController,
                 focusNode: _remainderFocus,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: inputFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
-                enableInteractiveSelection: false,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
+                fontSize: inputFontSize,
                 onTap: () {
                   setState(() {
                     _currentAnswerField = 'remainder';
                   });
                 },
-                onSubmitted: (_) => _checkAnswer(),
+                onSubmitted: _checkAnswer,
               ),
             ),
           ),
@@ -1068,23 +1061,12 @@ class _MultiplicationPracticePageState
             border: Border.all(color: Colors.grey, width: 1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: TextField(
-            readOnly: true,
-            showCursor: false,
+          child: _buildAnswerTextField(
             controller: _answerController,
             focusNode: _answerFocus,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: inputFontSize,
-              fontWeight: FontWeight.bold,
-            ),
-            enableInteractiveSelection: false,
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
-            onSubmitted: (_) => _checkAnswer(),
+            fontSize: inputFontSize,
+            onTap: null,
+            onSubmitted: _checkAnswer,
           ),
         ),
       ],
