@@ -23615,7 +23615,7 @@ acI:function acI(a,b){this.a=a
 this.b=b},
 acL:function acL(a){this.a=a},
 acK:function acK(a){this.a=a},
-anq(a){return"assets/"+(B.d.c3(a,"/")?B.d.cu(a,1):a)},
+anq(a){return"assets/assets/"+(B.d.c3(a,"/")?B.d.cu(a,1):a)},
 Yr(a,b,c){var s=A.anq("icons/"+b)
 return A.ann(s,new A.Ys(c,a),null,a,c)},
 axe(a,b,c){var s=A.anq("pictures/"+b)
