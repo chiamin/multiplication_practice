@@ -9,19 +9,21 @@ class ImageLoader {
   /// 獲取圖標的 URL 路徑
   /// 
   /// [assetPath] 例如 'icons/add.png' 或 'pictures/rabbits.png'
-  /// 返回完整的路徑，例如 'assets/icons/add.png'
+  /// 返回完整的路徑，例如 'assets/assets/icons/add.png' (Web) 或 'assets/icons/add.png' (其他平台)
   /// 
   /// 在 Web 平台上使用相對路徑，這樣可以支援 GitHub Pages 部署
   /// （配合 Flutter 的 base-href 設定）
+  /// 注意：Flutter Web 構建時會將 assets 複製到 build/web/assets/assets/ 目錄
   static String getImageUrl(String assetPath) {
     // 在 Web 平台上，使用相對路徑（不帶前導斜線）
     // 這樣可以配合 Flutter 的 base-href 正常工作
     if (kIsWeb) {
       // 移除前導斜線（如果有），然後構建相對路徑
+      // Flutter Web 構建時會將 assets 複製到 build/web/assets/assets/ 目錄
       final cleanPath = assetPath.startsWith('/') 
           ? assetPath.substring(1) 
           : assetPath;
-      return 'assets/$cleanPath';
+      return 'assets/assets/$cleanPath';
     }
     // 非 Web 平台使用 asset 路徑
     return 'assets/$assetPath';
