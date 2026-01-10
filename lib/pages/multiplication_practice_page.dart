@@ -47,6 +47,10 @@ class _MultiplicationPracticePageState
   int _questionsPerSet = 5;
   int _answeredCount = 0; // 本組已完成題數
 
+  // 本組已生成的題目（用於避免重複）
+  // 使用 Set 存儲 (a, b) 元組來表示題目
+  final Set<(int, int)> _usedQuestions = {};
+
   // 選擇的運算種類（預設乘法）
   Operation _operation = Operation.add;
 
@@ -139,37 +143,98 @@ class _MultiplicationPracticePageState
     }
   }
 
+  /// 檢查題目是否已使用過
+  /// 對於加法和乘法，由於交換律，需要檢查兩個順序
+  bool _isQuestionUsed(int a, int b) {
+    if (_operation == Operation.add || _operation == Operation.multiply) {
+      // 加法和乘法：檢查 (a, b) 和 (b, a)
+      return _usedQuestions.contains((a, b)) || _usedQuestions.contains((b, a));
+    } else {
+      // 減法和除法：只檢查 (a, b)，順序很重要
+      return _usedQuestions.contains((a, b));
+    }
+  }
+
+  /// 記錄已使用的題目
+  void _markQuestionAsUsed(int a, int b) {
+    // 對於加法和乘法，同時記錄兩個順序（因為交換律）
+    if (_operation == Operation.add || _operation == Operation.multiply) {
+      _usedQuestions.add((a, b));
+      _usedQuestions.add((b, a));
+    } else {
+      // 減法和除法：順序很重要，只記錄 (a, b)
+      _usedQuestions.add((a, b));
+    }
+  }
+
   void _generateNewQuestion() {
     setState(() {
       final (minA, maxA) = _getRangeA();
       final (minB, maxB) = _getRangeB();
 
+      // 計算可能的題目總數（估算）
+      int totalPossibleQuestions;
       switch (_operation) {
         case Operation.add:
-          _a = _randomNumberInRange(minA, maxA);
-          _b = _randomNumberInRange(minB, maxB);
+        case Operation.multiply:
+          // 加法和乘法：考慮交換律，實際題目數約為 (maxA - minA + 1) * (maxB - minB + 1) / 2
+          totalPossibleQuestions = 
+              ((maxA - minA + 1) * (maxB - minB + 1) / 2).ceil();
           break;
         case Operation.subtract:
-          // 減法：確保 _a >= _b（避免負數），同時 _a 在範圍A，_b 在範圍B
-          // 先選 _b（從範圍B），然後選 _a（從範圍A，但確保 _a >= _b）
-          _b = _randomNumberInRange(minB, maxB);
-          final int effectiveMinA = (minA > _b) ? minA : _b;
-          if (effectiveMinA > maxA) {
-            // 如果範圍A的最大值都小於範圍B的值，無法生成有效題目
-            // 退而求其次：讓 _a 盡量大，_b 盡量小（但仍在各自範圍內）
-            _a = maxA;
-            _b = minB.clamp(minB, (_a < maxB) ? _a : maxB);
-          } else {
-            _a = _randomNumberInRange(effectiveMinA, maxA);
-          }
-          break;
-        case Operation.multiply:
-          _a = _randomNumberInRange(minA, maxA);
-          _b = _randomNumberInRange(minB, maxB);
+          // 減法：較複雜，粗略估算
+          totalPossibleQuestions = (maxA - minA + 1) * (maxB - minB + 1);
           break;
         case Operation.divide:
-          _generateDivisionQuestion();
+          // 除法：更複雜，粗略估算
+          totalPossibleQuestions = (maxA - minA + 1) * (maxB - minB + 1);
           break;
+      }
+
+      // 如果已使用的題目數接近或超過可能的題目數，允許重複
+      const int maxAttempts = 100; // 最多嘗試次數
+      int attempts = 0;
+      bool questionGenerated = false;
+
+      while (!questionGenerated && attempts < maxAttempts) {
+        attempts++;
+        
+        switch (_operation) {
+          case Operation.add:
+            _a = _randomNumberInRange(minA, maxA);
+            _b = _randomNumberInRange(minB, maxB);
+            break;
+          case Operation.subtract:
+            // 減法：確保 _a >= _b（避免負數），同時 _a 在範圍A，_b 在範圍B
+            _b = _randomNumberInRange(minB, maxB);
+            final int effectiveMinA = (minA > _b) ? minA : _b;
+            if (effectiveMinA > maxA) {
+              _a = maxA;
+              _b = minB.clamp(minB, (_a < maxB) ? _a : maxB);
+            } else {
+              _a = _randomNumberInRange(effectiveMinA, maxA);
+            }
+            break;
+          case Operation.multiply:
+            _a = _randomNumberInRange(minA, maxA);
+            _b = _randomNumberInRange(minB, maxB);
+            break;
+          case Operation.divide:
+            _generateDivisionQuestion();
+            break;
+        }
+
+        // 檢查是否已使用過，或者允許重複（當所有題目都用過時）
+        if (_usedQuestions.length >= totalPossibleQuestions * 0.9 || 
+            !_isQuestionUsed(_a, _b)) {
+          _markQuestionAsUsed(_a, _b);
+          questionGenerated = true;
+        }
+      }
+
+      // 如果嘗試多次仍無法生成新題目，強制使用當前題目
+      if (!questionGenerated) {
+        _markQuestionAsUsed(_a, _b);
       }
 
       _answerController.clear();
@@ -500,6 +565,7 @@ class _MultiplicationPracticePageState
       // 再做一組：保留目前設定，只重置進度與題目
       setState(() {
         _answeredCount = 0;
+        _usedQuestions.clear(); // 清空已使用的題目列表
       });
       _clearMessage();
       _generateNewQuestion();
@@ -508,6 +574,7 @@ class _MultiplicationPracticePageState
       // 回到設定頁
       setState(() {
         _inSettings = true;
+        _usedQuestions.clear(); // 清空已使用的題目列表
       });
       _clearMessage();
     }
@@ -808,7 +875,10 @@ class _MultiplicationPracticePageState
 
           FilledButton(
             onPressed: () {
-              _answeredCount = 0;
+              setState(() {
+                _answeredCount = 0;
+                _usedQuestions.clear(); // 清空已使用的題目列表
+              });
               _generateNewQuestion();
               setState(() {
                 _inSettings = false;
