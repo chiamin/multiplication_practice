@@ -4,28 +4,45 @@
   const BASE = import.meta.env.BASE_URL
 
   let showDialog = $state(false)
+  let imgReady = $state(false)
 
   $effect(() => {
-    showDialog = false
-    const t = setTimeout(() => (showDialog = true), 3500)
+    // Preload rabbit image so it's ready as soon as we mount
+    const img = new Image()
+    img.onload = () => (imgReady = true)
+    img.onerror = () => (imgReady = true) // still proceed if it fails
+    img.src = `${BASE}assets/pictures/celebrate2_transparent.png`
+
+    const t = setTimeout(() => (showDialog = true), 4000)
     return () => clearTimeout(t)
   })
 </script>
 
-<!-- Full-screen overlay -->
-<div class="fixed inset-0 z-50 flex items-center justify-center">
+<!-- Full-screen overlay with soft backdrop so it's visually obvious -->
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center
+         bg-gradient-to-b from-amber-100/70 via-rose-100/70 to-violet-100/70
+         backdrop-blur-sm"
+>
   {#if !showDialog}
-    <!-- Celebration animation -->
-    <div class="animate-bounce">
-      <img
-        src="{BASE}assets/pictures/celebrate2_transparent.png"
-        alt="慶祝"
-        class="w-72 select-none sm:w-96"
-        draggable="false"
-      />
+    <div class="flex flex-col items-center gap-6">
+      <!-- Big text that shows immediately, independent of image loading -->
+      <div class="celebrate-text text-5xl font-black text-amber-500 drop-shadow-lg sm:text-6xl">
+        🎉 太棒了！🎉
+      </div>
+
+      {#if imgReady}
+        <div class="celebrate-rabbit">
+          <img
+            src="{BASE}assets/pictures/celebrate2_transparent.png"
+            alt="慶祝"
+            class="w-64 select-none drop-shadow-xl sm:w-80"
+            draggable="false"
+          />
+        </div>
+      {/if}
     </div>
   {:else}
-    <!-- Completion dialog -->
     <div
       class="mx-4 w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl"
       style="animation: pop-in 0.3s ease-out"
@@ -54,6 +71,32 @@
 </div>
 
 <style>
+  @keyframes celebrate-text {
+    0%   { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+    50%  { transform: scale(1.15) rotate(5deg);  opacity: 1; }
+    100% { transform: scale(1)    rotate(0);     opacity: 1; }
+  }
+  .celebrate-text {
+    animation:
+      celebrate-text 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+      celebrate-text-wiggle 1.5s ease-in-out 0.6s infinite;
+  }
+  @keyframes celebrate-text-wiggle {
+    0%, 100% { transform: rotate(0deg)  scale(1); }
+    25%      { transform: rotate(-3deg) scale(1.05); }
+    75%      { transform: rotate(3deg)  scale(1.05); }
+  }
+
+  @keyframes celebrate-rabbit {
+    0%, 100% { transform: translateY(0)    rotate(0deg)  scale(1); }
+    25%      { transform: translateY(-40px) rotate(-6deg) scale(1.05); }
+    50%      { transform: translateY(0)    rotate(0deg)  scale(1); }
+    75%      { transform: translateY(-40px) rotate(6deg)  scale(1.05); }
+  }
+  .celebrate-rabbit {
+    animation: celebrate-rabbit 1.2s ease-in-out infinite;
+  }
+
   @keyframes pop-in {
     from { transform: scale(0.85); opacity: 0; }
     to   { transform: scale(1);    opacity: 1; }
