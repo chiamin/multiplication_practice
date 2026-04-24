@@ -36,7 +36,7 @@
           <img
             src="{BASE}assets/pictures/celebrate2_transparent.png"
             alt="慶祝"
-            class="w-64 select-none drop-shadow-xl sm:w-80"
+            class="w-80 select-none drop-shadow-xl sm:w-96"
             draggable="false"
           />
         </div>
@@ -88,10 +88,10 @@
   }
 
   @keyframes celebrate-rabbit {
-    0%, 100% { transform: translateY(0)    rotate(0deg)  scale(1); }
-    25%      { transform: translateY(-40px) rotate(-6deg) scale(1.05); }
-    50%      { transform: translateY(0)    rotate(0deg)  scale(1); }
-    75%      { transform: translateY(-40px) rotate(6deg)  scale(1.05); }
+    0%, 100% { transform: scale(1)    rotate(0deg); }
+    25%      { transform: scale(1.15) rotate(-3deg); }
+    50%      { transform: scale(0.95) rotate(0deg); }
+    75%      { transform: scale(1.15) rotate(3deg); }
   }
   .celebrate-rabbit {
     animation: celebrate-rabbit 1.2s ease-in-out infinite;
