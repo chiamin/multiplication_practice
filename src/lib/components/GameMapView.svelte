@@ -147,8 +147,9 @@
 </script>
 
 <div class="flex flex-col items-center gap-3 pb-4">
-  <!-- Top banner: player name + progress -->
-  <div class="flex w-full max-w-2xl items-center justify-between rounded-2xl bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+  <!-- Top banner: player name + progress. Sticky so it stays pinned even when
+       the auto-scroll-to-current-level pushes the map content down. -->
+  <div class="sticky top-0 z-20 flex w-full max-w-2xl items-center justify-between rounded-2xl bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
     <span class="flex items-center gap-2 text-base font-bold text-slate-700">
       <span class="text-xl">🐰</span>
       <span>{practice.currentProfileName ?? '冒險地圖'}</span>

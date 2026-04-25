@@ -15,6 +15,10 @@
   function onAddProfile() {
     const name = trimmedName()
     if (!name) return
+    // Dismiss the iOS keyboard before any reactive churn — otherwise the
+    // dvh-shrink-then-grow transition runs concurrently with the next click,
+    // and any scroll math during that window uses a stale viewport height.
+    ;(document.activeElement as HTMLElement)?.blur()
     practice.addProfile(name)
     nameInput = ''
   }
@@ -24,6 +28,10 @@
   )
 
   function pickProfile(name: string) {
+    // See onAddProfile — keyboard might still be up if the user just tapped
+    // 新增 (button taps don't blur inputs on iOS), and entering the map runs
+    // a scrollIntoView that needs a stable viewport.
+    ;(document.activeElement as HTMLElement)?.blur()
     practice.startGameMode(name)
     nameInput = ''
   }
