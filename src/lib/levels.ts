@@ -19,7 +19,7 @@ export interface LevelConfig {
 }
 
 // firstTryWrongs: 每題只計入一次（第一次答錯才算），不是累計每次按錯
-// L5 設成 15 題 60 秒 ＝ 每題平均 4 秒（熟練小孩可達的目標）
+// 所有關卡都 5 題，靠每題秒數遞減拉開難度：18 → 13 → 9 → 6 → 4 秒/題
 export const LEVELS: LevelConfig[] = [
   {
     level: 1, questions: 5, timeLimitSec: 90, maxErrors: 2,
@@ -35,7 +35,7 @@ export const LEVELS: LevelConfig[] = [
     },
   },
   {
-    level: 2, questions: 7, timeLimitSec: 90, maxErrors: 2,
+    level: 2, questions: 5, timeLimitSec: 65, maxErrors: 2,
     theme: {
       gradient: 'linear-gradient(160deg, #e0f2fe 0%, #bae6fd 40%, #e0f7fa 100%)',
       decorations: [
@@ -48,7 +48,7 @@ export const LEVELS: LevelConfig[] = [
     },
   },
   {
-    level: 3, questions: 10, timeLimitSec: 90, maxErrors: 1,
+    level: 3, questions: 5, timeLimitSec: 45, maxErrors: 1,
     theme: {
       gradient: 'linear-gradient(160deg, #dcfce7 0%, #bbf7d0 40%, #d1fae5 100%)',
       decorations: [
@@ -61,7 +61,7 @@ export const LEVELS: LevelConfig[] = [
     },
   },
   {
-    level: 4, questions: 12, timeLimitSec: 72, maxErrors: 1,
+    level: 4, questions: 5, timeLimitSec: 30, maxErrors: 1,
     theme: {
       gradient: 'linear-gradient(160deg, #fff7ed 0%, #fed7aa 40%, #fde8d8 100%)',
       decorations: [
@@ -74,7 +74,7 @@ export const LEVELS: LevelConfig[] = [
     },
   },
   {
-    level: 5, questions: 15, timeLimitSec: 60, maxErrors: 0,
+    level: 5, questions: 5, timeLimitSec: 20, maxErrors: 0,
     theme: {
       gradient: 'linear-gradient(160deg, #faf5ff 0%, #ede9fe 40%, #fce7f3 100%)',
       decorations: [
