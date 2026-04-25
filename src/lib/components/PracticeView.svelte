@@ -23,6 +23,33 @@
       : null,
   )
 
+  const timeLimitSec = $derived(
+    practice.gameMode && practice.currentLevel >= 1
+      ? LEVELS[practice.currentLevel - 1].timeLimitSec
+      : null,
+  )
+
+  let nowMs = $state(Date.now())
+  $effect(() => {
+    const id = setInterval(() => { nowMs = Date.now() }, 200)
+    return () => clearInterval(id)
+  })
+
+  const timeRemainSec = $derived(
+    timeLimitSec !== null && practice.startTime > 0
+      ? Math.max(0, timeLimitSec - (nowMs - practice.startTime) / 1000)
+      : (timeLimitSec ?? 0),
+  )
+
+  const timerRatio = $derived(
+    timeLimitSec !== null && timeLimitSec > 0 ? timeRemainSec / timeLimitSec : 1,
+  )
+
+  const timerBarColor = $derived(
+    timerRatio > 0.5 ? 'bg-green-400' :
+    timerRatio > 0.2 ? 'bg-amber-400' : 'bg-red-500',
+  )
+
 </script>
 
 <div class="relative flex h-full flex-col gap-6">
@@ -60,6 +87,21 @@
       第 {practice.currentQuestionNumber} / {practice.questionsPerSet} 題
     </span>
   </div>
+
+  <!-- Countdown timer bar (game mode only) -->
+  {#if timeLimitSec !== null}
+    <div class="flex items-center gap-3">
+      <div class="h-3 flex-1 overflow-hidden rounded-full bg-slate-200">
+        <div
+          class="h-full rounded-full transition-all duration-200 {timerBarColor}"
+          style="width: {(timerRatio * 100).toFixed(1)}%"
+        ></div>
+      </div>
+      <span class="shrink-0 tabular-nums text-base text-slate-500">
+        ⏱ {Math.ceil(timeRemainSec)} 秒
+      </span>
+    </div>
+  {/if}
 
   <!-- Question + answer boxes -->
   <QuestionDisplay />

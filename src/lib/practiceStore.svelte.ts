@@ -40,9 +40,11 @@ if (typeof window !== 'undefined') {
 // Unlock iOS audio by playing muted dummy elements — completely separate from
 // SOUNDS so the muted state can never race with a real playSound() call.
 let soundsUnlocked = false
+let unlockPending = false
 
 function unlockSounds() {
-  if (soundsUnlocked) return
+  if (soundsUnlocked || unlockPending) return
+  unlockPending = true
   let anyFailed = false
   const promises = (Object.values(SOUND_FILES) as string[]).map(file => {
     const dummy = new Audio(`${BASE}assets/sounds/${file}`)
@@ -50,6 +52,7 @@ function unlockSounds() {
     return dummy.play().then(() => dummy.pause()).catch(() => { anyFailed = true })
   })
   Promise.all(promises).then(() => {
+    unlockPending = false
     if (!anyFailed) soundsUnlocked = true
   })
 }
@@ -185,7 +188,7 @@ class PracticeStore {
   remainderInput = $state('')
 
   private usedQuestions = new Set<string>()
-  private startTime = 0
+  startTime = 0
   private currentQuestionWrong = false
   // Result computed when a level is passed; held aside while the celebration
   // plays, then promoted to levelResult when the animation finishes.
