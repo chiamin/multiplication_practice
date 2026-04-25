@@ -222,6 +222,18 @@ class PracticeStore {
 
   // ── Actions ──
   /**
+   * Add a new profile without entering the game. No-op if the name already
+   * exists or is whitespace-only.
+   */
+  addProfile(rawName: string) {
+    const name = rawName.trim()
+    if (!name) return
+    if (this.profiles.find((p) => p.name === name)) return
+    this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0 }]
+    saveProfiles(this.profiles)
+  }
+
+  /**
    * Enter game mode under the given player name. Creates the profile if new;
    * otherwise loads its saved progress. Whitespace-only names are ignored.
    */

@@ -12,15 +12,16 @@
     return nameInput.trim().slice(0, MAX_NAME_LEN)
   }
 
-  function onEnterGame() {
+  function onAddProfile() {
     const name = trimmedName()
     if (!name) return
-    // Blur first so the iOS keyboard starts dismissing before we switch views.
-    // Without this, the keyboard-hide scroll happens after our scroll reset.
-    ;(document.activeElement as HTMLElement)?.blur()
-    practice.startGameMode(name)
+    practice.addProfile(name)
     nameInput = ''
   }
+
+  const nameExists = $derived(
+    !!trimmedName() && practice.profiles.some((p) => p.name === trimmedName()),
+  )
 
   function pickProfile(name: string) {
     practice.startGameMode(name)
@@ -190,7 +191,7 @@
 
   <!-- Game mode: name input + profiles -->
   <section>
-    <p class="mb-2 text-base font-semibold text-slate-600">你的名字</p>
+    <p class="mb-2 text-base font-semibold text-slate-600">新增名字</p>
     <div class="flex gap-2">
       <input
         type="text"
@@ -198,20 +199,23 @@
         placeholder="例如：小明"
         bind:value={nameInput}
         maxlength={MAX_NAME_LEN}
-        onkeydown={(e) => { if (e.key === 'Enter') onEnterGame() }}
+        onkeydown={(e) => { if (e.key === 'Enter') onAddProfile() }}
         aria-label="玩家名字"
       />
       <button
         class="rounded-lg bg-gradient-to-r from-pink-400 to-orange-400 px-5 py-2.5 text-lg font-bold text-white shadow-sm hover:from-pink-500 hover:to-orange-500 disabled:cursor-not-allowed disabled:opacity-40"
-        onclick={onEnterGame}
-        disabled={!nameInput.trim()}
+        onclick={onAddProfile}
+        disabled={!nameInput.trim() || nameExists}
       >
-        進入遊戲 →
+        新增
       </button>
     </div>
+    {#if nameExists}
+      <p class="mt-1.5 text-sm text-pink-500">這個名字已經存在了，點下面的名字就可以進入遊戲。</p>
+    {/if}
 
     {#if practice.profiles.length > 0}
-      <p class="mt-3 mb-2 text-sm font-medium text-slate-500">或選擇之前的名字：</p>
+      <p class="mt-3 mb-2 text-sm font-medium text-slate-500">點名字進入遊戲：</p>
       <div class="flex flex-wrap gap-2.5">
         {#each practice.profiles as p (p.name)}
           <div class="relative">
