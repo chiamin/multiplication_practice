@@ -55,7 +55,7 @@ fetch(`${BASE}assets/sounds/ding.mp3`)
 選擇 HTMLAudioElement 而非 Web Audio API 的原因：**HTMLAudioElement 走鈴聲音道，音量鍵可控制；Web Audio API 走媒體音道，不受音量鍵影響**，在 iPad 上體驗不直覺。
 
 - module load 時建立元素並 `preload='auto'`。
-- `unlockSounds()` 在第一次 user gesture 裡對每個元素做一次 `play()→pause()` priming，讓 iOS Safari / iPad Chrome 解鎖後續播放權限。document 級別的 touchstart / click 等都會 retry，直到所有元素 primed 為止。
+- `unlockSounds()` 在第一次 user gesture 裡建立**獨立的 dummy 元素**（`muted = true`）播放再暫停，讓 iOS Safari / iPad Chrome 解鎖後續播放權限。使用 dummy 元素而非真正的 `SOUNDS` 元素，是為了避免兩個 race condition：(1) muted 狀態與 `playSound()` 搶著用同一個元素；(2) dummy `play()` 的聲音直接被使用者聽到。成功後設 `soundsUnlocked = true`，之後呼叫 `unlockSounds()` 直接 return；若有任何 dummy play 失敗則不設旗標，下次 gesture 會再試。
 - `playSound()` 只做 `audio.currentTime = 0` + `audio.play()`，**不呼叫 `audio.pause()`**。在 iOS 上，若前一次 `play()` 的 Promise 還在 pending 就呼叫 `pause()`，會導致後續 `play()` 靜默失敗（Promise resolve 但沒聲音）。
 - 加新音效：在 `SoundName` union 和 `SOUND_FILES` 各加一筆，其餘自動處理。
 - **不要**在 `playSound()` 裡加 `pause()`——這是已知會在 iPad 上造成音效間歇性無聲的根源。
