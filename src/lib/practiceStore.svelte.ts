@@ -14,11 +14,6 @@ function questionKey(op: Operation, a: number, b: number): string {
 
 const BASE = import.meta.env.BASE_URL
 
-// Audio: original HTMLAudioElement-only approach. Each sound has one <audio>
-// element; on iOS the first .play() must run inside a user gesture, so we
-// prime each element with a muted play→pause cycle. Per-element flags ensure
-// we only prime each element once successfully — repeating the prime races
-// with real plays and would silently mute them.
 type SoundName = 'ding' | 'eoh' | 'cheer'
 
 const SOUND_FILES: Record<SoundName, string> = {
@@ -27,40 +22,30 @@ const SOUND_FILES: Record<SoundName, string> = {
   cheer: 'cheer.mp3',
 }
 
-const SOUNDS: Partial<Record<SoundName, HTMLAudioElement>> = {}
-
+// Preload files into browser HTTP cache at startup so first play is instant.
 if (typeof window !== 'undefined') {
-  for (const [name, file] of Object.entries(SOUND_FILES) as [SoundName, string][]) {
+  for (const file of Object.values(SOUND_FILES)) {
     const a = new Audio(`${BASE}assets/sounds/${file}`)
     a.preload = 'auto'
-    SOUNDS[name] = a
   }
 }
 
-// Unlock iOS audio by playing muted dummy elements — completely separate from
-// SOUNDS so the muted state can never race with a real playSound() call.
-let soundsUnlocked = false
-let unlockPending = false
+// iOS requires one user-gesture .play() before audio is allowed outside gestures
+// (e.g. the cheer that plays 800ms after the last correct answer).
+// Use a single muted dummy element — one at a time, retry on failure.
+let audioUnlocked = false
+let unlockInFlight = false
 
 function unlockSounds() {
-  if (soundsUnlocked || unlockPending) return
-  unlockPending = true
-  let anyFailed = false
-  const promises = (Object.values(SOUND_FILES) as string[]).map(file => {
-    const dummy = new Audio(`${BASE}assets/sounds/${file}`)
-    dummy.muted = true
-    return dummy.play().then(() => dummy.pause()).catch(() => { anyFailed = true })
-  })
-  Promise.all(promises).then(() => {
-    unlockPending = false
-    if (!anyFailed) soundsUnlocked = true
-  })
+  if (audioUnlocked || unlockInFlight) return
+  unlockInFlight = true
+  const dummy = new Audio(`${BASE}assets/sounds/ding.mp3`)
+  dummy.muted = true
+  dummy.play()
+    .then(() => { audioUnlocked = true; unlockInFlight = false })
+    .catch(() => { unlockInFlight = false })
 }
 
-// Document-wide capture listener: every user interaction retries unlock for
-// any element that hasn't been primed yet. Don't auto-remove — early
-// attempts (e.g. on keyboard show/hide) may fail and later real clicks need
-// another shot.
 if (typeof document !== 'undefined') {
   const handler = () => unlockSounds()
   document.addEventListener('touchstart', handler, { capture: true, passive: true })
@@ -69,11 +54,12 @@ if (typeof document !== 'undefined') {
   document.addEventListener('click',      handler, { capture: true })
 }
 
+// Create a fresh Audio element on every play — eliminates all element-reuse
+// state bugs. Browser serves cached audio from HTTP cache, so no re-fetching.
 function playSound(name: SoundName) {
-  const audio = SOUNDS[name]
-  if (!audio) return
-  audio.currentTime = 0
-  audio.play().catch((err) => console.warn(`play ${name} failed:`, err))
+  new Audio(`${BASE}assets/sounds/${SOUND_FILES[name]}`)
+    .play()
+    .catch(err => console.warn(`play ${name} failed:`, err))
 }
 
 type MessageType = 'correct' | 'wrong' | 'info' | null
