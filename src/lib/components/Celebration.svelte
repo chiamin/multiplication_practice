@@ -49,18 +49,29 @@
     >
       <p class="mb-2 text-center text-4xl">🎉</p>
       <h2 class="mb-2 text-center text-xl font-bold text-slate-800">本次練習完成！</h2>
-      <p class="mb-6 text-center text-slate-500">
-        你已完成 {practice.questionsPerSet} 題練習，要再做一組嗎？
+      <p class="mb-3 text-center text-slate-500">
+        你已完成 {practice.questionsPerSet} 題練習！
       </p>
+      <div class="mb-6 space-y-1 text-center text-lg font-semibold text-slate-700">
+        <p>用時：{practice.elapsedDisplay}</p>
+        <p>
+          答錯：
+          {#if practice.wrongCount === 0}
+            <span class="text-green-600">全對！🎯</span>
+          {:else}
+            {practice.wrongCount} 次
+          {/if}
+        </p>
+      </div>
       <div class="flex gap-3">
         <button
-          class="flex-1 rounded-xl border border-slate-300 py-3 font-medium text-slate-600 hover:bg-slate-50"
+          class="flex-1 rounded-xl border border-slate-300 py-3.5 text-lg font-bold text-slate-600 hover:bg-slate-50"
           onclick={() => practice.returnToSettings()}
         >
           回到設定
         </button>
         <button
-          class="flex-1 rounded-xl bg-blue-500 py-3 font-bold text-white hover:bg-blue-600"
+          class="flex-1 rounded-xl bg-blue-500 py-3.5 text-lg font-bold text-white hover:bg-blue-600"
           onclick={() => practice.startAnotherSet()}
         >
           再做一組

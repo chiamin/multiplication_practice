@@ -4,8 +4,34 @@
   box-sizing: border-box;
 }
 
+/*
+  Lock the document so it never scrolls. This makes a real header that's
+  *outside* the scrollable region trivially possible on any browser, including
+  iPad Chrome / iOS WebKit, where `position: fixed` is unreliable across
+  momentum scroll, browser-chrome show/hide, and pinch interactions.
+
+  Scrolling happens inside <main>, which is given an explicit height via flex.
+*/
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: system-ui, 'Segoe UI', sans-serif;
   background: #f8fafc;
+  /* iOS Safari: kill double-tap zoom + 300ms tap delay; keep pinch-zoom */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Tappable elements: no gray tap highlight, no double-tap zoom */
+button,
+a,
+input,
+[role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }

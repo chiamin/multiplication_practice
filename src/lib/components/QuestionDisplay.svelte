@@ -34,13 +34,13 @@
   {@const sym = OPERATION_SYMBOL[practice.operation]}
   {@const isDivide = practice.operation === Operation.Divide}
 
-  <div class="flex items-center justify-center gap-2 text-4xl font-bold text-slate-800 sm:text-5xl">
+  <div class="flex flex-wrap items-center justify-center gap-3 text-7xl font-bold text-slate-800 sm:text-8xl">
     <span>{a} {sym} {b} =</span>
 
     {#if isDivide}
       <!-- Quotient box -->
       <button
-        class="min-w-16 rounded-xl border-2 px-3 py-1 text-center text-4xl font-bold transition-colors
+        class="min-w-24 rounded-xl border-2 px-4 py-2 text-center text-7xl font-bold transition-colors sm:text-8xl
           {practice.activeField === 'quotient'
             ? 'border-blue-500 bg-blue-50 text-blue-700'
             : 'border-slate-300 bg-white text-slate-700'}"
@@ -50,11 +50,11 @@
         {practice.quotientInput || ' '}
       </button>
 
-      <span class="text-3xl text-slate-500">...</span>
+      <span class="text-5xl text-slate-500">...</span>
 
       <!-- Remainder box -->
       <button
-        class="min-w-16 rounded-xl border-2 px-3 py-1 text-center text-4xl font-bold transition-colors
+        class="min-w-24 rounded-xl border-2 px-4 py-2 text-center text-7xl font-bold transition-colors sm:text-8xl
           {practice.activeField === 'remainder'
             ? 'border-blue-500 bg-blue-50 text-blue-700'
             : 'border-slate-300 bg-white text-slate-700'}"
@@ -66,8 +66,8 @@
     {:else}
       <!-- Single answer box -->
       <button
-        class="min-w-20 rounded-xl border-2 border-slate-300 bg-white px-3 py-1
-               text-center text-4xl font-bold text-slate-700 focus:border-blue-500 focus:outline-none sm:text-5xl"
+        class="min-w-32 rounded-xl border-2 border-slate-300 bg-white px-4 py-2
+               text-center text-7xl font-bold text-slate-700 focus:border-blue-500 focus:outline-none sm:text-8xl"
         onkeydown={(e) => onInputKeydown(e, 'quotient')}
       >
         {practice.quotientInput || ' '}
@@ -76,6 +76,6 @@
   </div>
 
   {#if practice.operation === Operation.Divide}
-    <p class="mt-1 text-center text-xs text-slate-400">Tab 切換商／餘數，Enter 送出</p>
+    <p class="mt-2 text-center text-sm text-slate-400">Tab 切換商／餘數，Enter 送出</p>
   {/if}
 {/if}

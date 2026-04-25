@@ -2,14 +2,34 @@
   import { practice } from '../practiceStore.svelte'
   import QuestionDisplay from './QuestionDisplay.svelte'
   import NumericKeypad from './NumericKeypad.svelte'
-  import HandwritingCanvas from './HandwritingCanvas.svelte'
 
-  let questionKey = $derived(
-    practice.question ? `${practice.question.a}-${practice.question.b}-${practice.answeredCount}` : ''
-  )
+  // Scroll the inner main container to top on entering practice — in game
+  // mode the map usually leaves it scrolled down to the current level node.
+  $effect(() => {
+    const reset = () => {
+      const main = document.querySelector('main')
+      if (main) main.scrollTop = 0
+    }
+    reset()
+    requestAnimationFrame(reset)
+    const t = setTimeout(reset, 50)
+    return () => clearTimeout(t)
+  })
 </script>
 
-<div class="flex h-full flex-col gap-3">
+<div class="flex h-full flex-col gap-6">
+  {#if practice.gameMode && practice.currentLevel > 0}
+    <div class="flex items-center justify-center">
+      <span class="rounded-full bg-gradient-to-r from-pink-400 to-orange-400 px-5 py-2 text-xl font-bold text-white shadow-sm">
+        🐰
+        {#if practice.currentProfileName}
+          {practice.currentProfileName} ·
+        {/if}
+        第 {practice.currentLevel} 關
+      </span>
+    </div>
+  {/if}
+
   <!-- Progress bar -->
   <div class="flex items-center gap-3">
     <div class="h-3 flex-1 overflow-hidden rounded-full bg-slate-200">
@@ -18,7 +38,7 @@
         style="width: {(practice.progress * 100).toFixed(1)}%"
       ></div>
     </div>
-    <span class="shrink-0 text-sm text-slate-500">
+    <span class="shrink-0 text-base text-slate-500">
       第 {practice.currentQuestionNumber} / {practice.questionsPerSet} 題
     </span>
   </div>
@@ -27,7 +47,7 @@
   <QuestionDisplay />
 
   <!-- Feedback message -->
-  <div class="min-h-7 text-center text-lg font-medium
+  <div class="min-h-9 text-center text-2xl font-medium
     {practice.messageType === 'correct' ? 'text-green-600' :
      practice.messageType === 'wrong'   ? 'text-red-500'   :
                                            'text-amber-600'}">
@@ -36,11 +56,4 @@
 
   <!-- Numeric keypad -->
   <NumericKeypad />
-
-  <!-- Handwriting canvas (fills remaining space) -->
-  <div class="min-h-0 flex-1">
-    {#key questionKey}
-      <HandwritingCanvas />
-    {/key}
-  </div>
 </div>

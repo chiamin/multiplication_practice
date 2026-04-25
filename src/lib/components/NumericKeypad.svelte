@@ -15,9 +15,9 @@
   <div class="flex justify-center gap-2">
     {#each ROW1 as digit}
       <button
-        class="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-300
-               bg-white text-2xl font-bold text-slate-700 shadow-sm active:bg-slate-100
-               hover:border-slate-400 sm:h-16 sm:w-16 sm:text-3xl"
+        class="flex h-20 w-20 items-center justify-center rounded-xl border border-slate-300
+               bg-white text-4xl font-bold text-slate-700 shadow-sm active:bg-slate-100
+               hover:border-slate-400 sm:h-24 sm:w-24 sm:text-5xl"
         onclick={() => practice.appendDigit(digit)}
       >
         {digit}
@@ -26,12 +26,12 @@
 
     <!-- Submit -->
     <button
-      class="flex h-14 w-14 items-center justify-center rounded-xl border border-blue-300
-             bg-blue-50 shadow-sm active:bg-blue-100 hover:border-blue-400 sm:h-16 sm:w-16"
+      class="flex h-20 w-20 items-center justify-center rounded-xl border border-blue-300
+             bg-blue-50 shadow-sm active:bg-blue-100 hover:border-blue-400 sm:h-24 sm:w-24"
       onclick={() => practice.submitAnswer()}
       aria-label="送出答案"
     >
-      <img src="{BASE}assets/icons/send.png" alt="送出" class="h-8 w-8 object-contain sm:h-9 sm:w-9" />
+      <img src="{BASE}assets/icons/send.png" alt="送出" class="h-12 w-12 object-contain sm:h-14 sm:w-14" />
     </button>
   </div>
 
@@ -39,9 +39,9 @@
   <div class="flex justify-center gap-2">
     {#each ROW2 as digit}
       <button
-        class="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-300
-               bg-white text-2xl font-bold text-slate-700 shadow-sm active:bg-slate-100
-               hover:border-slate-400 sm:h-16 sm:w-16 sm:text-3xl"
+        class="flex h-20 w-20 items-center justify-center rounded-xl border border-slate-300
+               bg-white text-4xl font-bold text-slate-700 shadow-sm active:bg-slate-100
+               hover:border-slate-400 sm:h-24 sm:w-24 sm:text-5xl"
         onclick={() => practice.appendDigit(digit)}
       >
         {digit}
@@ -50,12 +50,12 @@
 
     <!-- Clear active field -->
     <button
-      class="flex h-14 w-14 items-center justify-center rounded-xl border border-blue-300
-             bg-blue-50 shadow-sm active:bg-blue-100 hover:border-blue-400 sm:h-16 sm:w-16"
+      class="flex h-20 w-20 items-center justify-center rounded-xl border border-blue-300
+             bg-blue-50 shadow-sm active:bg-blue-100 hover:border-blue-400 sm:h-24 sm:w-24"
       onclick={() => practice.clearActiveInput()}
       aria-label="清除答案"
     >
-      <img src="{BASE}assets/icons/eraser.png" alt="清除" class="h-8 w-8 object-contain sm:h-9 sm:w-9" />
+      <img src="{BASE}assets/icons/eraser.png" alt="清除" class="h-12 w-12 object-contain sm:h-14 sm:w-14" />
     </button>
   </div>
 
@@ -63,7 +63,7 @@
   {#if isDivide}
     <div class="flex justify-center gap-3">
       <button
-        class="rounded-lg px-4 py-1.5 text-sm font-medium transition-colors
+        class="rounded-lg px-6 py-2.5 text-lg font-medium transition-colors
           {practice.activeField === 'quotient'
             ? 'bg-blue-500 text-white'
             : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}"
@@ -72,7 +72,7 @@
         輸入商
       </button>
       <button
-        class="rounded-lg px-4 py-1.5 text-sm font-medium transition-colors
+        class="rounded-lg px-6 py-2.5 text-lg font-medium transition-colors
           {practice.activeField === 'remainder'
             ? 'bg-blue-500 text-white'
             : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}"
