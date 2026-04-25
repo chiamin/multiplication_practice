@@ -1,5 +1,6 @@
 <script lang="ts">
   import { practice } from '../practiceStore.svelte'
+  import { LEVELS } from '../levels'
   import QuestionDisplay from './QuestionDisplay.svelte'
   import NumericKeypad from './NumericKeypad.svelte'
 
@@ -15,9 +16,26 @@
     const t = setTimeout(reset, 50)
     return () => clearTimeout(t)
   })
+
+  const theme = $derived(
+    practice.gameMode && practice.currentLevel >= 1
+      ? LEVELS[practice.currentLevel - 1].theme
+      : null,
+  )
+
 </script>
 
-<div class="flex h-full flex-col gap-6">
+<div class="relative flex h-full flex-col gap-6">
+  <!-- Decorative emoji (game mode only) -->
+  {#if theme}
+    {#each theme.decorations as d, i (i)}
+      <span
+        class="pointer-events-none absolute select-none opacity-50 {d.size}"
+        style="left: {d.x}%; top: {d.y}%; transform: translate(-50%, -50%);"
+        aria-hidden="true"
+      >{d.emoji}</span>
+    {/each}
+  {/if}
   {#if practice.gameMode && practice.currentLevel > 0}
     <div class="flex items-center justify-center">
       <span class="rounded-full bg-gradient-to-r from-pink-400 to-orange-400 px-5 py-2 text-xl font-bold text-white shadow-sm">

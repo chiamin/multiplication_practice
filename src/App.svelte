@@ -1,11 +1,18 @@
 <script lang="ts">
   import { practice } from './lib/practiceStore.svelte'
+  import { LEVELS } from './lib/levels'
   import SettingsView from './lib/components/SettingsView.svelte'
   import PracticeView from './lib/components/PracticeView.svelte'
   import GameMapView from './lib/components/GameMapView.svelte'
   import Celebration from './lib/components/Celebration.svelte'
   import GameResult from './lib/components/GameResult.svelte'
   import PassCelebration from './lib/components/PassCelebration.svelte'
+
+  const mainBg = $derived(
+    practice.view === 'practice' && practice.gameMode && practice.currentLevel >= 1
+      ? LEVELS[practice.currentLevel - 1].theme.gradient
+      : null,
+  )
 
   function handleBack() {
     if (practice.view === 'map') {
@@ -22,6 +29,16 @@
       !practice.levelResult &&
       !practice.passingCelebration,
   )
+
+  // On iPad, typing in a text input can scroll document.body even with
+  // overflow:hidden, pushing the header off-screen. Reset on every view
+  // transition so the layout stays anchored.
+  $effect(() => {
+    practice.view
+    window.scrollTo(0, 0)
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+  })
 </script>
 
 <!--
@@ -47,7 +64,10 @@
     <h1 class="text-xl font-bold text-slate-700">算術練習</h1>
   </header>
 
-  <main class="min-h-0 flex-1 overflow-y-auto">
+  <main
+    class="relative min-h-0 flex-1 overflow-y-auto transition-[background] duration-500"
+    style={mainBg ? `background: ${mainBg};` : ''}
+  >
     <div class="mx-auto flex w-full max-w-2xl flex-col px-4 py-4">
       {#if practice.view === 'settings'}
         <SettingsView />

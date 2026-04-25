@@ -28,7 +28,6 @@ const SOUND_FILES: Record<SoundName, string> = {
 }
 
 const SOUNDS: Partial<Record<SoundName, HTMLAudioElement>> = {}
-const PRIMED: Partial<Record<SoundName, boolean>> = {}
 
 if (typeof window !== 'undefined') {
   for (const [name, file] of Object.entries(SOUND_FILES) as [SoundName, string][]) {
@@ -38,30 +37,21 @@ if (typeof window !== 'undefined') {
   }
 }
 
+// Unlock iOS audio by playing muted dummy elements — completely separate from
+// SOUNDS so the muted state can never race with a real playSound() call.
+let soundsUnlocked = false
+
 function unlockSounds() {
-  for (const [n, audio] of Object.entries(SOUNDS) as [SoundName, HTMLAudioElement | undefined][]) {
-    if (!audio || PRIMED[n]) continue
-    try {
-      audio.muted = true
-      const p = audio.play()
-      if (p && typeof p.then === 'function') {
-        p.then(() => {
-          audio.pause()
-          audio.currentTime = 0
-          audio.muted = false
-          PRIMED[n] = true
-        }).catch(() => {
-          audio.muted = false
-        })
-      } else {
-        audio.pause()
-        audio.muted = false
-        PRIMED[n] = true
-      }
-    } catch {
-      audio.muted = false
-    }
-  }
+  if (soundsUnlocked) return
+  let anyFailed = false
+  const promises = (Object.values(SOUND_FILES) as string[]).map(file => {
+    const dummy = new Audio(`${BASE}assets/sounds/${file}`)
+    dummy.muted = true
+    return dummy.play().then(() => dummy.pause()).catch(() => { anyFailed = true })
+  })
+  Promise.all(promises).then(() => {
+    if (!anyFailed) soundsUnlocked = true
+  })
 }
 
 // Document-wide capture listener: every user interaction retries unlock for
