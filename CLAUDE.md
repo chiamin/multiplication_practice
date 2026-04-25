@@ -54,11 +54,11 @@ fetch(`${BASE}assets/sounds/ding.mp3`)
 [practiceStore.svelte.ts](src/lib/practiceStore.svelte.ts) 用 **`HTMLAudioElement`**（`new Audio()`）播 ding／eoh／cheer。
 選擇 HTMLAudioElement 而非 Web Audio API 的原因：**HTMLAudioElement 走鈴聲音道，音量鍵可控制；Web Audio API 走媒體音道，不受音量鍵影響**，在 iPad 上體驗不直覺。
 
-- module load 時建立元素並 `preload='auto'`。
-- `unlockSounds()` 在第一次 user gesture 裡建立**獨立的 dummy 元素**（`muted = true`）播放再暫停，讓 iOS Safari / iPad Chrome 解鎖後續播放權限。使用 dummy 元素而非真正的 `SOUNDS` 元素，是為了避免兩個 race condition：(1) muted 狀態與 `playSound()` 搶著用同一個元素；(2) dummy `play()` 的聲音直接被使用者聽到。成功後設 `soundsUnlocked = true`，之後呼叫 `unlockSounds()` 直接 return；若有任何 dummy play 失敗則不設旗標，下次 gesture 會再試。
-- `playSound()` 只做 `audio.currentTime = 0` + `audio.play()`，**不呼叫 `audio.pause()`**。在 iOS 上，若前一次 `play()` 的 Promise 還在 pending 就呼叫 `pause()`，會導致後續 `play()` 靜默失敗（Promise resolve 但沒聲音）。
+- module load 時為每個音檔建立一個 `preload='auto'` 的 Audio 元素，**只是要把檔案灌進瀏覽器 HTTP cache**，元素本身用完即丟、不保留。
+- `playSound()` **每次都 `new Audio()` 建立全新元素**再 `play()`。檔案已在 HTTP cache，建立成本極低；改成這樣是要徹底消除元素重用造成的 race condition——舊作法在 iOS 上若前一次 `play()` 的 Promise 還在 pending、就被下一次 `currentTime = 0` 或 `pause()` 干擾，會導致後續 `play()` 靜默失敗（Promise resolve 但沒聲音）。
+- `unlockSounds()` 在第一次 user gesture 裡建立**獨立的 dummy 元素**（`muted = true`）播一次 ding.mp3，讓 iOS Safari / iPad Chrome 解鎖後續非 gesture 內的播放權限（例如答完最後一題 800ms 後才播的 cheer）。用 dummy 元素是為了使用者聽不到那聲解鎖。一次只跑一個（`unlockInFlight` 旗標守住），成功設 `audioUnlocked = true`；失敗則只清掉 `unlockInFlight`，下個 gesture 會再試。
 - 加新音效：在 `SoundName` union 和 `SOUND_FILES` 各加一筆，其餘自動處理。
-- **不要**在 `playSound()` 裡加 `pause()`——這是已知會在 iPad 上造成音效間歇性無聲的根源。
+- **不要**回退到「共用 `<audio>` 元素 + `currentTime = 0` + `pause()`」的舊作法——已知會在 iPad 上造成音效間歇性無聲。
 
 ## Build / Deploy
 
