@@ -15,6 +15,9 @@
   function onEnterGame() {
     const name = trimmedName()
     if (!name) return
+    // Blur first so the iOS keyboard starts dismissing before we switch views.
+    // Without this, the keyboard-hide scroll happens after our scroll reset.
+    ;(document.activeElement as HTMLElement)?.blur()
     practice.startGameMode(name)
     nameInput = ''
   }

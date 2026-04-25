@@ -30,25 +30,14 @@
       !practice.passingCelebration,
   )
 
-  // On iPad, typing in a text input can scroll document.body even with
-  // overflow:hidden, pushing the header off-screen. Reset on every view
-  // transition so the layout stays anchored.
-  $effect(() => {
-    practice.view
-    window.scrollTo(0, 0)
-    document.documentElement.scrollTop = 0
-    document.body.scrollTop = 0
-  })
 </script>
 
 <!--
-  Layout: html / body / #app are locked to 100% height with overflow:hidden
-  (see app.css), so the page itself never scrolls. The header is just a
-  normal flex item at the top of the column — it doesn't need `fixed` or
-  `sticky`, it simply isn't part of any scrollable area. <main> takes the
-  remaining height with `min-h-0` (so flex can shrink it) and scrolls
-  internally via `overflow-y-auto`. This is the layout most native-feeling
-  apps use and behaves identically across desktop and iOS browsers.
+  Layout: html/body/#app use height:100dvh (dynamic viewport height, see
+  app.css). dvh shrinks when the iOS keyboard appears, so the browser never
+  needs to scroll window.scrollY to reveal a focused input — which is the
+  root cause of the header being pushed off-screen. The header is a normal
+  shrink-0 flex item; <main> takes the rest with overflow-y-auto.
 -->
 <div class="flex h-full flex-col bg-slate-50">
   <header class="flex h-14 shrink-0 items-center border-b border-slate-200 bg-white px-4 shadow-sm">

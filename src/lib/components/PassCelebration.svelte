@@ -59,7 +59,7 @@
         <img
           src="{BASE}assets/pictures/celebrate2_transparent.png"
           alt="慶祝"
-          class="w-72 select-none drop-shadow-xl sm:w-96"
+          class="w-[22rem] select-none drop-shadow-xl sm:w-[32rem]"
           draggable="false"
         />
       </div>

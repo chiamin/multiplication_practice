@@ -5,15 +5,18 @@
 }
 
 /*
-  Lock the document so it never scrolls. This makes a real header that's
-  *outside* the scrollable region trivially possible on any browser, including
-  iPad Chrome / iOS WebKit, where `position: fixed` is unreliable across
-  momentum scroll, browser-chrome show/hide, and pinch interactions.
-
-  Scrolling happens inside <main>, which is given an explicit height via flex.
+  Lock the document so it never scrolls.
+  - height: 100dvh  — "dynamic viewport height": shrinks when the iOS on-screen
+    keyboard appears. This prevents iOS from having to scroll window.scrollY to
+    keep the focused input visible (which bypasses overflow:hidden and pushes
+    the header off-screen). When the keyboard hides, dvh expands back naturally.
+  - height: 100%    — fallback for very old browsers that don't support dvh.
+  - overflow: hidden — belt-and-suspenders: block any residual scroll at the
+    document level. Actual scrolling happens inside <main> (overflow-y-auto).
 */
 html, body, #app {
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
 }
