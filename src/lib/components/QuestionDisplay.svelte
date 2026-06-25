@@ -3,6 +3,13 @@
   import { Operation, OPERATION_SYMBOL } from '../types'
 
   function onInputKeydown(e: KeyboardEvent, field: 'quotient' | 'remainder') {
+    // Ignore input edits while an answer is being processed (mirrors the
+    // keypad lock). Enter still falls through to submitAnswer(), which has its
+    // own re-entrancy guard.
+    if (practice.submitting && e.key !== 'Enter') {
+      if (/^\d$/.test(e.key) || e.key === 'Backspace' || e.key === 'Tab') e.preventDefault()
+      return
+    }
     if (/^\d$/.test(e.key)) {
       e.preventDefault()
       practice.setActiveField(field)

@@ -52,7 +52,17 @@
 
 </script>
 
-<div class="relative flex h-full flex-col gap-6">
+<!--
+  touch-action:none + select-none + overscroll-contain: kill native touch
+  scrolling, text-selection and rubber-band on the practice page so a finger
+  that slips slightly while tapping a key still registers as a click instead of
+  being swallowed by a scroll/drag/long-press-select gesture. The page fits in
+  one screen, so disabling scroll here loses nothing.
+-->
+<div
+  class="relative flex h-full flex-col gap-6 touch-none select-none overscroll-contain"
+  style="touch-action: none; -webkit-user-select: none; user-select: none;"
+>
   <!-- Decorative emoji (game mode only) -->
   {#if theme}
     {#each theme.decorations as d, i (i)}

@@ -172,6 +172,11 @@ class PracticeStore {
   // ── Answer inputs ──
   quotientInput = $state('')
   remainderInput = $state('')
+  // True while an answer is being processed (the 800ms correct-answer delay,
+  // or the synchronous wrong-answer path). Blocks re-entrant taps so a fast
+  // double-tap on 送出 can't double-count or skip a question. The keypad reads
+  // this to disable itself.
+  submitting = $state(false)
 
   private usedQuestions = new Set<string>()
   startTime = 0
@@ -309,6 +314,7 @@ class PracticeStore {
   private _resetPracticeState() {
     this.answeredCount = 0
     this.usedQuestions.clear()
+    this.submitting = false
     this.celebrating = false
     this.elapsedMs = 0
     this.wrongCount = 0
@@ -322,6 +328,7 @@ class PracticeStore {
     // Safari can't keep us suspended after focus changes / virtual keyboard
     // pop-ins from earlier in the flow.
     unlockSounds()
+    if (this.submitting) return
     if (this.operation === Operation.Divide && this.activeField === 'remainder') {
       this.remainderInput += digit.toString()
     } else {
@@ -330,6 +337,7 @@ class PracticeStore {
   }
 
   clearActiveInput() {
+    if (this.submitting) return
     if (this.operation === Operation.Divide && this.activeField === 'remainder') {
       this.remainderInput = ''
     } else {
@@ -338,6 +346,7 @@ class PracticeStore {
   }
 
   backspace() {
+    if (this.submitting) return
     if (this.operation === Operation.Divide && this.activeField === 'remainder') {
       this.remainderInput = this.remainderInput.slice(0, -1)
     } else {
@@ -353,7 +362,14 @@ class PracticeStore {
     // Submit is a real click — refresh audio unlock right at the moment we're
     // about to need to play ding/eoh.
     unlockSounds()
+    // Guard against re-entrant taps. A correct answer holds `submitting` for
+    // the full 800ms feedback delay (released in _onCorrect's finally); a fast
+    // double-tap during that window would otherwise double-count or skip a
+    // question. Validation failures / wrong answers release it immediately so
+    // the child can retry without waiting.
+    if (this.submitting) return
     if (!this.question) return
+    this.submitting = true
     const { a, b } = this.question
 
     if (this.operation === Operation.Divide) {
@@ -362,33 +378,39 @@ class PracticeStore {
       if (isNaN(q) || this.quotientInput === '') {
         this._setMessage('請輸入商', 'info')
         this.activeField = 'quotient'
+        this.submitting = false
         return
       }
       if (isNaN(r) || this.remainderInput === '') {
         this._setMessage('請輸入餘數', 'info')
         this.activeField = 'remainder'
+        this.submitting = false
         return
       }
       const result = checkDivisionAnswer(a, b, q, r)
       if (result.error) {
         this._setMessage(result.error, 'info')
+        this.submitting = false
         return
       }
       if (result.correct) {
         await this._onCorrect()
       } else {
         this._onWrong()
+        this.submitting = false
       }
     } else {
       const answer = parseInt(this.quotientInput)
       if (isNaN(answer) || this.quotientInput === '') {
         this._setMessage('請先輸入答案', 'info')
+        this.submitting = false
         return
       }
       if (checkAnswer(this.operation, a, b, answer)) {
         await this._onCorrect()
       } else {
         this._onWrong()
+        this.submitting = false
       }
     }
   }
@@ -396,18 +418,24 @@ class PracticeStore {
   private async _onCorrect() {
     this._setMessage('答對了！太棒了 🎉', 'correct')
     playSound('ding')
-    await delay(800)
-    this.answeredCount++
-    if (this.answeredCount >= this.questionsPerSet) {
-      this.elapsedMs = Date.now() - this.startTime
-      if (this.gameMode && this.currentLevel > 0) {
-        this._finishLevel()
+    try {
+      await delay(800)
+      this.answeredCount++
+      if (this.answeredCount >= this.questionsPerSet) {
+        this.elapsedMs = Date.now() - this.startTime
+        if (this.gameMode && this.currentLevel > 0) {
+          this._finishLevel()
+        } else {
+          this.celebrating = true
+          playSound('cheer')
+        }
       } else {
-        this.celebrating = true
-        playSound('cheer')
+        this._nextQuestion()
       }
-    } else {
-      this._nextQuestion()
+    } finally {
+      // Released after the feedback delay so the keypad stays disabled the
+      // whole time the “答對了” message is up; re-enabled for the next question.
+      this.submitting = false
     }
   }
 
