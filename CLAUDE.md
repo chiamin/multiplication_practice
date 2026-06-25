@@ -51,11 +51,11 @@ fetch(`${BASE}assets/sounds/ding.mp3`)
 
 ## 音效
 
-[practiceStore.svelte.ts](src/lib/practiceStore.svelte.ts) 用 **`HTMLAudioElement`**（`new Audio()`）播 ding／eoh／cheer。
+[practiceStore.svelte.ts](src/lib/practiceStore.svelte.ts) 用 **`HTMLAudioElement`** 播 ding／eoh／cheer。
 選擇 HTMLAudioElement 而非 Web Audio API 的原因：**HTMLAudioElement 走鈴聲音道，音量鍵可控制；Web Audio API 走媒體音道，不受音量鍵影響**，在 iPad 上體驗不直覺。
 
-- module load 時為每個音檔建立一個 `preload='auto'` 的 Audio 元素，**只是要把檔案灌進瀏覽器 HTTP cache**，元素本身用完即丟、不保留。
-- `playSound()` **每次都 `new Audio()` 建立全新元素**再 `play()`。檔案已在 HTTP cache，建立成本極低；改成這樣是要徹底消除元素重用造成的 race condition——舊作法在 iOS 上若前一次 `play()` 的 Promise 還在 pending、就被下一次 `currentTime = 0` 或 `pause()` 干擾，會導致後續 `play()` 靜默失敗（Promise resolve 但沒聲音）。
+- **預熱元件池**：module load 時為每個音檔建立 `POOL_SIZE`（目前 3）個 `preload='auto'` 並 `load()` 過的 Audio 元素，保留在 `pools` 裡。`load()` 讓瀏覽器**事先 fetch + 解碼**，播放才能從已解碼的 buffer 直接出聲——這是解決「按下到出聲有延遲」的關鍵；舊的「每次 `new Audio()` 再 `play()`」要在每次播放現場 fetch（HTTP cache）+ 解碼，那段解碼時間就是延遲來源。
+- `playSound()` 從池中挑一個**閒置**（`paused || ended`）的元素來播；只有對「已播完」的元素才設 `currentTime = 0`（此時它上一次的 `play()` Promise 早已 settle，不會有 race）。若全部都在播，臨時 `new Audio()` 補一個 fallback、播完即被 GC。**絕不去碰正在播（play() Promise 還 pending）的元素**——這正是要避開的元素重用 race。
 - `unlockSounds()` 在第一次 user gesture 裡建立**獨立的 dummy 元素**（`muted = true`）播一次 ding.mp3，讓 iOS Safari / iPad Chrome 解鎖後續非 gesture 內的播放權限（例如答完最後一題 800ms 後才播的 cheer）。用 dummy 元素是為了使用者聽不到那聲解鎖。一次只跑一個（`unlockInFlight` 旗標守住），成功設 `audioUnlocked = true`；失敗則只清掉 `unlockInFlight`，下個 gesture 會再試。
 - 加新音效：在 `SoundName` union 和 `SOUND_FILES` 各加一筆，其餘自動處理。
 - **不要**回退到「共用 `<audio>` 元素 + `currentTime = 0` + `pause()`」的舊作法——已知會在 iPad 上造成音效間歇性無聲。

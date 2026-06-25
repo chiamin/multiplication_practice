@@ -22,11 +22,38 @@ const SOUND_FILES: Record<SoundName, string> = {
   cheer: 'cheer.mp3',
 }
 
-// Preload files into browser HTTP cache at startup so first play is instant.
+// Pre-warmed element pool, keyed by sound name. Each element is created and
+// load()ed at startup so the browser fetches AND decodes the audio up front —
+// playback then starts from an already-decoded buffer instead of paying the
+// "new Audio() → fetch from cache → decode" cost on every tap, which was the
+// source of the audible delay.
+//
+// We keep HTMLAudioElement (not Web Audio) on purpose: it plays on the ringer
+// channel so the iPad volume keys control it (see CLAUDE.md). The pool size > 1
+// lets overlapping/rapid plays each grab a different idle element, so we never
+// touch an element whose play() promise is still pending — which is the
+// element-reuse race the old shared-element approach hit. We only ever reset
+// currentTime on an element that has already finished (paused || ended), where
+// its previous play() promise has long since settled.
+const POOL_SIZE = 3
+const pools: Record<SoundName, HTMLAudioElement[]> = {
+  ding: [],
+  eoh: [],
+  cheer: [],
+}
+
+function makeElement(name: SoundName): HTMLAudioElement {
+  const el = new Audio(`${BASE}assets/sounds/${SOUND_FILES[name]}`)
+  el.preload = 'auto'
+  el.load() // kick off fetch + decode now so the buffer is ready before first play
+  return el
+}
+
 if (typeof window !== 'undefined') {
-  for (const file of Object.values(SOUND_FILES)) {
-    const a = new Audio(`${BASE}assets/sounds/${file}`)
-    a.preload = 'auto'
+  for (const name of Object.keys(SOUND_FILES) as SoundName[]) {
+    for (let i = 0; i < POOL_SIZE; i++) {
+      pools[name].push(makeElement(name))
+    }
   }
 }
 
@@ -54,12 +81,21 @@ if (typeof document !== 'undefined') {
   document.addEventListener('click',      handler, { capture: true })
 }
 
-// Create a fresh Audio element on every play — eliminates all element-reuse
-// state bugs. Browser serves cached audio from HTTP cache, so no re-fetching.
+// Play from the pre-warmed pool. Pick an idle element (one that's finished or
+// hasn't started); its decoded buffer is ready, so playback is near-instant.
+// We only reset currentTime on a finished element — never on one whose play()
+// promise is still pending, sidestepping the element-reuse race (see pool
+// comment / CLAUDE.md). If every element is mid-play we spin up a throwaway one
+// so a play is never dropped; it's GC'd after it ends.
 function playSound(name: SoundName) {
-  new Audio(`${BASE}assets/sounds/${SOUND_FILES[name]}`)
-    .play()
-    .catch(err => console.warn(`play ${name} failed:`, err))
+  const pool = pools[name]
+  let el = pool.find((e) => e.paused || e.ended)
+  if (!el) {
+    el = makeElement(name)
+  } else if (el.currentTime !== 0) {
+    el.currentTime = 0
+  }
+  el.play().catch((err) => console.warn(`play ${name} failed:`, err))
 }
 
 type MessageType = 'correct' | 'wrong' | 'info' | null
