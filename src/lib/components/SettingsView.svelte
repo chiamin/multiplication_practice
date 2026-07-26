@@ -1,6 +1,12 @@
 <script lang="ts">
   import { practice } from '../practiceStore.svelte'
-  import { Operation, OPERATION_LABEL, OPERATION_ICON, QUESTION_COUNT_OPTIONS } from '../types'
+  import {
+    Operation,
+    OPERATION_LABEL,
+    OPERATION_ICON,
+    QUESTION_COUNT_OPTIONS,
+    FIXED_RANGE_OPERATIONS,
+  } from '../types'
   import { TOTAL_LEVELS } from '../levels'
 
   const BASE = import.meta.env.BASE_URL
@@ -46,6 +52,11 @@
     return Math.min(TOTAL_LEVELS, Math.max(0, unlocked - 1))
   }
 
+  // 每滿 10 朵小花進位成 1 顆星星（與 store 的 FLOWERS_PER_STAR 一致）
+  const FLOWERS_PER_STAR = 10
+  const stars = (flowers: number) => Math.floor(flowers / FLOWERS_PER_STAR)
+  const flowerRemainder = (flowers: number) => flowers % FLOWERS_PER_STAR
+
   function clampRange(min: number, max: number): [number, number] {
     const lo = Math.max(0, Math.min(min, 999))
     const hi = Math.max(lo, Math.min(max, 999))
@@ -84,7 +95,22 @@
     }
   }
 
-  const operations = [Operation.Add, Operation.Subtract, Operation.Multiply, Operation.Divide]
+  const operations = [
+    Operation.Add,
+    Operation.Subtract,
+    Operation.Multiply,
+    Operation.Divide,
+    Operation.AddCarry,
+    Operation.SubtractBorrow,
+  ]
+
+  // 進位加法／借位減法的題目由規則決定，數字範圍設定用不到，直接藏起來。
+  const fixedRange = $derived(FIXED_RANGE_OPERATIONS.includes(practice.operation))
+
+  const FIXED_RANGE_HINT: Partial<Record<Operation, string>> = {
+    [Operation.AddCarry]: '個位數相加、答案超過 10 的題目，例如 5 + 8。',
+    [Operation.SubtractBorrow]: '十幾減個位數、一定要借位的題目，例如 13 − 8。',
+  }
 </script>
 
 <div class="flex flex-col gap-6 py-2">
@@ -93,7 +119,7 @@
   <!-- Operation selector -->
   <section>
     <p class="mb-2 text-base font-semibold text-slate-600">要練習的運算</p>
-    <div class="grid grid-cols-4 gap-2">
+    <div class="grid grid-cols-3 gap-2">
       {#each operations as op}
         {@const selected = practice.operation === op}
         <button
@@ -114,6 +140,12 @@
     </div>
   </section>
 
+  {#if fixedRange}
+    <!-- 進位加法／借位減法：題目範圍固定，說明一下就好 -->
+    <p class="rounded-xl bg-amber-50 px-4 py-3 text-base text-amber-800">
+      {FIXED_RANGE_HINT[practice.operation]}
+    </p>
+  {:else}
   <!-- Range A -->
   <section>
     <p class="mb-2 text-base font-semibold text-slate-600">第一個數字的範圍</p>
@@ -163,6 +195,7 @@
       />
     </div>
   </section>
+  {/if}
 
   <!-- Question count -->
   <section>
@@ -237,7 +270,14 @@
                 · {passedCount(p.unlockedLevel)}/{TOTAL_LEVELS} 關
               </span>
               {#if p.flowers > 0}
-                <span class="text-sm font-semibold text-pink-400">🌸×{p.flowers}</span>
+                <span class="flex items-center gap-1 text-sm font-semibold">
+                  {#if stars(p.flowers) > 0}
+                    <span class="text-amber-500">🌟×{stars(p.flowers)}</span>
+                  {/if}
+                  {#if flowerRemainder(p.flowers) > 0}
+                    <span class="text-pink-400">🌸×{flowerRemainder(p.flowers)}</span>
+                  {/if}
+                </span>
               {/if}
             </button>
             <button

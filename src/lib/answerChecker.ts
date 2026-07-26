@@ -7,9 +7,11 @@ export function checkAnswer(
   userAnswer: number
 ): boolean {
   switch (operation) {
-    case Operation.Add:      return userAnswer === a + b
-    case Operation.Subtract: return userAnswer === a - b
-    case Operation.Multiply: return userAnswer === a * b
+    case Operation.Add:            return userAnswer === a + b
+    case Operation.AddCarry:       return userAnswer === a + b
+    case Operation.Subtract:       return userAnswer === a - b
+    case Operation.SubtractBorrow: return userAnswer === a - b
+    case Operation.Multiply:       return userAnswer === a * b
     case Operation.Divide:   throw new Error('Use checkDivisionAnswer for division')
   }
 }
