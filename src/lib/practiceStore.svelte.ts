@@ -5,7 +5,7 @@ import { LEVELS, TOTAL_LEVELS, type LevelConfig } from './levels'
 
 // Normalize commutative operations so (3,5) and (5,3) count as the same question
 function questionKey(op: Operation, a: number, b: number): string {
-  if (op === Operation.Add || op === Operation.Multiply) {
+  if (op === Operation.Add || op === Operation.AddCarry || op === Operation.Multiply) {
     const [lo, hi] = a <= b ? [a, b] : [b, a]
     return `${op}:${lo},${hi}`
   }
@@ -122,6 +122,9 @@ export interface Profile {
 
 const PROFILES_KEY = 'game.profiles.v1'
 const LEGACY_UNLOCKED_KEY = 'game.unlockedLevel'
+
+// 每收集滿這麼多朵小花，就進位成 1 顆星星
+const FLOWERS_PER_STAR = 10
 
 function loadProfiles(): Profile[] {
   if (typeof localStorage === 'undefined') return []
@@ -241,6 +244,16 @@ class PracticeStore {
   get currentFlowers(): number {
     if (!this.currentProfileName) return 0
     return this.profiles.find((p) => p.name === this.currentProfileName)?.flowers ?? 0
+  }
+
+  // 每收集滿 FLOWERS_PER_STAR 朵小花，就進位成 1 顆星星。
+  // currentStars = 已進位的星星數；currentFlowersRemainder = 尚未進位的剩餘小花數。
+  get currentStars(): number {
+    return Math.floor(this.currentFlowers / FLOWERS_PER_STAR)
+  }
+
+  get currentFlowersRemainder(): number {
+    return this.currentFlowers % FLOWERS_PER_STAR
   }
 
   get elapsedDisplay() {

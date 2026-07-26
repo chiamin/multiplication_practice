@@ -156,8 +156,13 @@
     </span>
     <div class="flex items-center gap-3">
       {#if practice.currentFlowers > 0}
-        <span class="text-base font-bold text-pink-500">
-          🌸×{practice.currentFlowers}
+        <span class="flex items-center gap-1.5 text-base font-bold">
+          {#if practice.currentStars > 0}
+            <span class="text-amber-500">🌟×{practice.currentStars}</span>
+          {/if}
+          {#if practice.currentFlowersRemainder > 0}
+            <span class="text-pink-500">🌸×{practice.currentFlowersRemainder}</span>
+          {/if}
         </span>
       {/if}
       {#if nextLevelCfg}
@@ -267,15 +272,30 @@
     {/if}
   </div>
 
-  <!-- Flower garden (shown when at least 1 flower collected) -->
+  <!-- Flower garden (shown when at least 1 flower collected).
+       每滿 10 朵小花進位成 1 顆星星；上排放星星，下排放尚未進位的剩餘小花。 -->
   {#if practice.currentFlowers > 0}
     <div class="w-full max-w-2xl rounded-2xl bg-white/80 px-4 py-4 shadow-sm backdrop-blur">
-      <p class="mb-3 text-sm font-bold text-pink-500">🌸 你的花圃（共 {practice.currentFlowers} 朵）</p>
-      <div class="flex flex-wrap gap-3">
-        {#each { length: practice.currentFlowers } as _, i (i)}
-          <FlowerSvg size={56} />
-        {/each}
-      </div>
+      <p class="mb-3 text-sm font-bold text-pink-500">
+        🌸 你的花圃（共 {practice.currentFlowers} 朵
+        {#if practice.currentStars > 0}
+          <span class="text-amber-500">＝ 🌟×{practice.currentStars} ＋ 🌸×{practice.currentFlowersRemainder}</span>
+        {/if}）
+      </p>
+      {#if practice.currentStars > 0}
+        <div class="mb-3 flex flex-wrap gap-2 text-4xl">
+          {#each { length: practice.currentStars } as _, i (i)}
+            <span class="star-pop" aria-hidden="true">🌟</span>
+          {/each}
+        </div>
+      {/if}
+      {#if practice.currentFlowersRemainder > 0}
+        <div class="flex flex-wrap gap-3">
+          {#each { length: practice.currentFlowersRemainder } as _, i (i)}
+            <FlowerSvg size={56} />
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -327,5 +347,14 @@
   }
   .node-current {
     animation: node-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes star-twinkle {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0)); }
+    50%      { transform: scale(1.12); filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.7)); }
+  }
+  .star-pop {
+    display: inline-block;
+    animation: star-twinkle 2.2s ease-in-out infinite;
   }
 </style>

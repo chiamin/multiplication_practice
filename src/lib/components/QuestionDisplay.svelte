@@ -41,13 +41,18 @@
   {@const sym = OPERATION_SYMBOL[practice.operation]}
   {@const isDivide = practice.operation === Operation.Divide}
 
-  <div class="flex flex-wrap items-center justify-center gap-3 text-7xl font-bold text-slate-800 sm:text-8xl">
-    <span>{a} {sym} {b} =</span>
+  <div
+    class="flex flex-nowrap items-center justify-center font-bold text-slate-800
+      {isDivide
+        ? 'gap-2 text-4xl sm:gap-3 sm:text-8xl'
+        : 'gap-3 text-6xl sm:text-8xl'}"
+  >
+    <span class="whitespace-nowrap">{a} {sym} {b} =</span>
 
     {#if isDivide}
       <!-- Quotient box -->
       <button
-        class="min-w-24 rounded-xl border-2 px-4 py-2 text-center text-7xl font-bold transition-colors sm:text-8xl
+        class="min-w-12 rounded-xl border-2 px-2 py-2 text-center font-bold transition-colors sm:min-w-24 sm:px-4
           {practice.activeField === 'quotient'
             ? 'border-blue-500 bg-blue-50 text-blue-700'
             : 'border-slate-300 bg-white text-slate-700'}"
@@ -57,11 +62,11 @@
         {practice.quotientInput || ' '}
       </button>
 
-      <span class="text-5xl text-slate-500">...</span>
+      <span class="text-2xl text-slate-500 sm:text-5xl">...</span>
 
       <!-- Remainder box -->
       <button
-        class="min-w-24 rounded-xl border-2 px-4 py-2 text-center text-7xl font-bold transition-colors sm:text-8xl
+        class="min-w-12 rounded-xl border-2 px-2 py-2 text-center font-bold transition-colors sm:min-w-24 sm:px-4
           {practice.activeField === 'remainder'
             ? 'border-blue-500 bg-blue-50 text-blue-700'
             : 'border-slate-300 bg-white text-slate-700'}"
@@ -73,8 +78,8 @@
     {:else}
       <!-- Single answer box -->
       <button
-        class="min-w-32 rounded-xl border-2 border-slate-300 bg-white px-4 py-2
-               text-center text-7xl font-bold text-slate-700 focus:border-blue-500 focus:outline-none sm:text-8xl"
+        class="min-w-20 rounded-xl border-2 border-slate-300 bg-white px-3 py-2
+               text-center text-6xl font-bold text-slate-700 focus:border-blue-500 focus:outline-none sm:min-w-32 sm:px-4 sm:text-8xl"
         onkeydown={(e) => onInputKeydown(e, 'quotient')}
       >
         {practice.quotientInput || ' '}

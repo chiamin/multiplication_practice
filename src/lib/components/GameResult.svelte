@@ -15,6 +15,11 @@
   const errorBarPct = $derived(
     r ? Math.min(100, (r.firstTryWrongs / Math.max(1, r.maxErrors)) * 100) : 0,
   )
+
+  // 剛拿到的這朵花，是否讓總數集滿一顆星星（總數變成 10 的倍數且 > 0）
+  const justEarnedStar = $derived(
+    practice.currentFlowers > 0 && practice.currentFlowersRemainder === 0,
+  )
 </script>
 
 {#if r}
@@ -103,17 +108,32 @@
         </div>
       </div>
 
-      <!-- Flower reward (only when all levels cleared) -->
+      <!-- Flower reward (only when all levels cleared).
+           集滿 10 朵時，這朵花進位成一顆星星，改用星星慶祝畫面。 -->
       {#if r.passed && isLastLevel}
-        <div class="flower-reward mb-5 flex flex-col items-center gap-1 rounded-2xl bg-pink-50 py-4">
-          <p class="text-base font-bold text-pink-600">✨ 獲得一朵小花！</p>
-          <FlowerSvg size={72} class="flower-pop" />
-          <p class="text-sm font-semibold text-slate-500">
-            你共收集了
-            <span class="text-xl font-black text-pink-500">{practice.currentFlowers}</span>
-            朵小花 🌸
-          </p>
-        </div>
+        {#if justEarnedStar}
+          <div class="flower-reward mb-5 flex flex-col items-center gap-1 rounded-2xl bg-amber-50 py-4">
+            <p class="text-base font-bold text-amber-600">🌟 集滿 10 朵小花，變成一顆星星！</p>
+            <span class="flower-pop text-6xl" aria-hidden="true">🌟</span>
+            <p class="text-sm font-semibold text-slate-500">
+              你已經收集了
+              <span class="text-xl font-black text-amber-500">{practice.currentStars}</span>
+              顆星星 🌟
+            </p>
+          </div>
+        {:else}
+          <div class="flower-reward mb-5 flex flex-col items-center gap-1 rounded-2xl bg-pink-50 py-4">
+            <p class="text-base font-bold text-pink-600">✨ 獲得一朵小花！</p>
+            <FlowerSvg size={72} class="flower-pop" />
+            <p class="text-sm font-semibold text-slate-500">
+              目前有
+              <span class="text-xl font-black text-amber-500">{practice.currentStars}</span>
+              顆星星 🌟 和
+              <span class="text-xl font-black text-pink-500">{practice.currentFlowersRemainder}</span>
+              朵小花 🌸
+            </p>
+          </div>
+        {/if}
       {/if}
 
       <!-- Actions -->
