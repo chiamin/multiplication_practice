@@ -1,4 +1,4 @@
-import { Operation, type AnswerField } from './types'
+import { Operation, FIXED_RANGE_OPERATIONS, type AnswerField } from './types'
 import { generateQuestion } from './questionGenerator'
 import { checkAnswer, checkDivisionAnswer } from './answerChecker'
 import { LEVELS, TOTAL_LEVELS, type LevelConfig } from './levels'
@@ -114,10 +114,20 @@ export interface LevelResult {
 }
 
 // ── Per-name game progress ──
+// 錯題紀錄：key 是 questionKey()，count 是「第一次就答錯」的累積次數。
+// 一次就答對會 -1，減到 0 就移除（畢業）。
+export interface WrongStat {
+  op: Operation
+  a: number
+  b: number
+  count: number
+}
+
 export interface Profile {
   name: string
   unlockedLevel: number
   flowers: number
+  wrongStats: Record<string, WrongStat>
 }
 
 const PROFILES_KEY = 'game.profiles.v1'
@@ -125,6 +135,36 @@ const LEGACY_UNLOCKED_KEY = 'game.unlockedLevel'
 
 // 每收集滿這麼多朵小花，就進位成 1 顆星星
 const FLOWERS_PER_STAR = 10
+
+// 錯題複習：遊戲模式出題時，若錯題庫有可用的題目，有這個機率抽錯題來複習
+// （抽中哪一題按 count 加權——錯越多次越常出現）。
+const REVIEW_CHANCE = 0.4
+// 單題錯誤計數上限，避免權重無限膨脹
+const MAX_WRONG_COUNT = 9
+
+const OPERATION_VALUES = new Set<string>(Object.values(Operation))
+
+function sanitizeWrongStats(raw: unknown): Record<string, WrongStat> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, WrongStat> = {}
+  for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
+    const s = v as Partial<WrongStat> | null
+    if (
+      s &&
+      typeof s.op === 'string' && OPERATION_VALUES.has(s.op) &&
+      typeof s.a === 'number' && typeof s.b === 'number' &&
+      typeof s.count === 'number' && s.count > 0
+    ) {
+      out[key] = {
+        op: s.op as Operation,
+        a: s.a,
+        b: s.b,
+        count: Math.min(MAX_WRONG_COUNT, Math.floor(s.count)),
+      }
+    }
+  }
+  return out
+}
 
 function loadProfiles(): Profile[] {
   if (typeof localStorage === 'undefined') return []
@@ -142,6 +182,7 @@ function loadProfiles(): Profile[] {
             name: p.name,
             unlockedLevel: Math.min(Math.max(1, p.unlockedLevel), TOTAL_LEVELS + 1),
             flowers: typeof p.flowers === 'number' && p.flowers >= 0 ? Math.floor(p.flowers) : 0,
+            wrongStats: sanitizeWrongStats((p as Partial<Profile>).wrongStats),
           }))
       }
     }
@@ -151,7 +192,7 @@ function loadProfiles(): Profile[] {
       const n = parseInt(legacy)
       if (!isNaN(n) && n >= 1) {
         const migrated: Profile[] = [
-          { name: '小朋友', unlockedLevel: Math.min(n, TOTAL_LEVELS + 1), flowers: 0 },
+          { name: '小朋友', unlockedLevel: Math.min(n, TOTAL_LEVELS + 1), flowers: 0, wrongStats: {} },
         ]
         saveProfiles(migrated)
         localStorage.removeItem(LEGACY_UNLOCKED_KEY)
@@ -272,7 +313,7 @@ class PracticeStore {
     const name = rawName.trim()
     if (!name) return
     if (this.profiles.find((p) => p.name === name)) return
-    this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0 }]
+    this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, wrongStats: {} }]
     saveProfiles(this.profiles)
   }
 
@@ -288,7 +329,7 @@ class PracticeStore {
     // significant work (storage writes, reactive re-renders) drains the gesture.
     unlockSounds()
     if (!this.profiles.find((p) => p.name === name)) {
-      this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0 }]
+      this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, wrongStats: {} }]
       saveProfiles(this.profiles)
     }
     const profile = this.profiles.find((p) => p.name === name)!
@@ -465,6 +506,10 @@ class PracticeStore {
   }
 
   private async _onCorrect() {
+    // 一次就答對：錯題計數 -1，答對夠多次就從錯題庫畢業
+    if (!this.currentQuestionWrong && this.question) {
+      this._updateWrongStat(this.question.a, this.question.b, -1)
+    }
     this._setMessage('答對了！太棒了 🎉', 'correct')
     playSound('ding')
     try {
@@ -589,6 +634,10 @@ class PracticeStore {
     if (!this.currentQuestionWrong) {
       this.currentQuestionWrong = true
       this.firstTryWrongs++
+      // 第一次答錯才記入錯題庫（同一題重複按錯不重複計）
+      if (this.question) {
+        this._updateWrongStat(this.question.a, this.question.b, +1)
+      }
     }
     this.quotientInput = ''
     this.remainderInput = ''
@@ -611,7 +660,86 @@ class PracticeStore {
     this.currentQuestionWrong = false
   }
 
+  // ── 錯題複習 ──
+  private _currentProfile(): Profile | null {
+    if (!this.currentProfileName) return null
+    return this.profiles.find((p) => p.name === this.currentProfileName) ?? null
+  }
+
+  /** 遊戲模式中調整目前題目的錯題計數（delta = +1 答錯 / -1 一次就答對）。 */
+  private _updateWrongStat(a: number, b: number, delta: number) {
+    const name = this.currentProfileName
+    if (!this.gameMode || !name) return
+    const key = questionKey(this.operation, a, b)
+    const op = this.operation
+    this.profiles = this.profiles.map((p) => {
+      if (p.name !== name) return p
+      const stats = { ...(p.wrongStats ?? {}) }
+      const prev = stats[key]?.count ?? 0
+      const next = Math.min(MAX_WRONG_COUNT, Math.max(0, prev + delta))
+      if (next === prev) return p
+      if (next === 0) {
+        delete stats[key]
+      } else {
+        stats[key] = { op, a, b, count: next }
+      }
+      return { ...p, wrongStats: stats }
+    })
+    saveProfiles(this.profiles)
+  }
+
+  /** 錯題是否還在目前設定的數字範圍內（規則型運算的範圍固定，一律有效）。 */
+  private _inCurrentRange(a: number, b: number): boolean {
+    if (FIXED_RANGE_OPERATIONS.includes(this.operation)) return true
+    const fits = (x: number, min: number, max: number) => x >= min && x <= max
+    const direct = fits(a, this.minA, this.maxA) && fits(b, this.minB, this.maxB)
+    if (this.operation === Operation.Add || this.operation === Operation.Multiply) {
+      return direct || (fits(b, this.minA, this.maxA) && fits(a, this.minB, this.maxB))
+    }
+    return direct
+  }
+
+  /**
+   * 遊戲模式下，以 REVIEW_CHANCE 的機率從錯題庫抽一題複習（按錯誤次數加權，
+   * 錯越多次越容易被抽中）。沒有可用錯題或沒抽中時回傳 null，走一般隨機出題。
+   */
+  private _pickReviewQuestion(): { a: number; b: number } | null {
+    const profile = this._currentProfile()
+    if (!this.gameMode || !profile) return null
+    const candidates = Object.entries(profile.wrongStats ?? {}).filter(
+      ([key, s]) =>
+        s.op === this.operation &&
+        s.count > 0 &&
+        !this.usedQuestions.has(key) &&
+        this._inCurrentRange(s.a, s.b),
+    )
+    if (candidates.length === 0) return null
+    if (Math.random() >= REVIEW_CHANCE) return null
+    const total = candidates.reduce((sum, [, s]) => sum + s.count, 0)
+    let r = Math.random() * total
+    let picked = candidates[candidates.length - 1][1]
+    for (const [, s] of candidates) {
+      r -= s.count
+      if (r < 0) {
+        picked = s
+        break
+      }
+    }
+    // 交換律運算隨機交換順序，複習題看起來才不會一成不變
+    const commutative =
+      this.operation === Operation.Add ||
+      this.operation === Operation.AddCarry ||
+      this.operation === Operation.Multiply
+    if (commutative && Math.random() < 0.5) return { a: picked.b, b: picked.a }
+    return { a: picked.a, b: picked.b }
+  }
+
   private _generateNonRepeating(): { a: number; b: number } {
+    const review = this._pickReviewQuestion()
+    if (review) {
+      this.usedQuestions.add(questionKey(this.operation, review.a, review.b))
+      return review
+    }
     const MAX_TRIES = 100
     for (let i = 0; i < MAX_TRIES; i++) {
       const q = generateQuestion(this.operation, this.minA, this.maxA, this.minB, this.maxB)
