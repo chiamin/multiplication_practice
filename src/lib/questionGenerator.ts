@@ -21,22 +21,26 @@ function generateSubtraction(minA: number, maxA: number, minB: number, maxB: num
   return { a: randomInt(effectiveMinA, maxA), b }
 }
 
-// 進位加法：兩個個位數 (2~9) 相加，和一定 ≥ 10，例如 5 + 8。
-// 直接挑 a，再從能讓 a + b ≥ 10 的 b 裡挑，保證一次就中。
+// 進位加法：兩位數 + 個位數，個位相加一定超過 10（要進位），例如 38 + 9。
+// 先挑 a 的個位（1~9，0 不可能進位），再挑能讓個位和 ≥ 10 的 b；
+// 十位挑 1~9，所以 a 落在 11~99。
 function generateAddWithCarry() {
-  const a = randomInt(2, 9)
-  const b = randomInt(Math.max(2, 10 - a), 9)
+  const ones = randomInt(1, 9)
+  const tens = randomInt(1, 9)
+  const a = tens * 10 + ones
+  const b = randomInt(10 - ones, 9) // ones + b ≥ 10 → 一定進位
   return { a, b }
 }
 
-// 借位減法：十幾 (11~18) 減個位數 (2~9)，個位一定不夠減，例如 13 − 8。
-// 先挑被減數 a，b 必須 > a 的個位數（才要借位）且 ≤ 9，同時 a − b ≥ 1。
+// 借位減法：兩位數 − 個位數，個位一定不夠減（要向十位借），例如 71 − 3。
+// 先挑 a 的個位（0~8，9 減任何個位數都不必借），b 必須 > 個位數才會借位；
+// 十位挑 1~9，所以 a 落在 10~98，答案一定 ≥ 1。
 function generateSubtractWithBorrow() {
-  const a = randomInt(11, 18)
-  const ones = a % 10
-  const minB = ones + 1        // 大於個位數 → 一定要借位
-  const maxB = Math.min(9, a - 1) // 不讓答案變成 0 或負數
-  return { a, b: randomInt(minB, maxB) }
+  const ones = randomInt(0, 8)
+  const tens = randomInt(1, 9)
+  const a = tens * 10 + ones
+  const b = randomInt(ones + 1, 9) // 大於個位數 → 一定要借位
+  return { a, b }
 }
 
 function generateMultiplication(minA: number, maxA: number, minB: number, maxB: number) {

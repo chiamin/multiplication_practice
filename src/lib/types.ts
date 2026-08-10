@@ -3,9 +3,9 @@ export enum Operation {
   Subtract = 'subtract',
   Multiply = 'multiply',
   Divide = 'divide',
-  // 個位數 + 個位數，答案一定超過 10（有進位），例如 5 + 8
+  // 兩位數 + 個位數，個位相加一定超過 10（有進位），例如 38 + 9
   AddCarry = 'add-carry',
-  // 十幾 − 個位數，個位不夠減（一定要借位），例如 13 − 8
+  // 兩位數 − 個位數，個位不夠減（一定要借位），例如 71 − 3
   SubtractBorrow = 'subtract-borrow',
 }
 

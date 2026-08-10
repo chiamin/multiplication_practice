@@ -108,8 +108,8 @@
   const fixedRange = $derived(FIXED_RANGE_OPERATIONS.includes(practice.operation))
 
   const FIXED_RANGE_HINT: Partial<Record<Operation, string>> = {
-    [Operation.AddCarry]: '個位數相加、答案超過 10 的題目，例如 5 + 8。',
-    [Operation.SubtractBorrow]: '十幾減個位數、一定要借位的題目，例如 13 − 8。',
+    [Operation.AddCarry]: '兩位數加個位數、個位一定要進位的題目，例如 38 + 9。',
+    [Operation.SubtractBorrow]: '兩位數減個位數、個位一定要借位的題目，例如 71 − 3。',
   }
 </script>
 
