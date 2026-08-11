@@ -141,6 +141,11 @@ const FLOWERS_PER_STAR = 10
 // （抽中哪一題按 mastery.ts 的難度權重加權——越不熟越常出現）。
 const REVIEW_CHANCE = 0.4
 
+// 答錯的題目「隔幾題後」才可以在同一組內再出現。
+// 設 2 表示中間至少插入 2 題別的，第 3 題起才有機會重播——孩子不會覺得被同
+// 一題卡住，但又能在本組內再遇到它加深印象（即時複習）。
+const REPLAY_GAP = 2
+
 const OPERATION_VALUES = new Set<string>(Object.values(Operation))
 
 function sanitizeQuestionStats(raw: unknown): Record<string, QuestionStat> {
@@ -303,6 +308,12 @@ class PracticeStore {
   submitting = $state(false)
 
   private usedQuestions = new Set<string>()
+  // 答錯過、等著在本組內重播的題目 → 它最早可以再出現的「題序」。
+  // _onWrong 時登記為「現在的題序 + REPLAY_GAP + 1」，抽題時只放行已到期的，
+  // 這樣答錯的題目能在同一組內即時複習，又不會連續出現。
+  private replayAfter = new Map<string, number>()
+  // 本組已經出過幾題（含目前這題），replayAfter 的到期判斷基準。
+  private questionsShown = 0
   startTime = 0
   private currentQuestionWrong = false
   // 這一題出現在畫面上的時刻，用來算「花幾秒答出來」餵給難度分公式。
@@ -448,7 +459,7 @@ class PracticeStore {
     this.passingCelebration = false
     this.pendingResult = null
     this.levelResult = null
-    this.usedQuestions.clear()
+    this._resetQuestionHistory()
     this.message = ''
     this.messageType = null
   }
@@ -459,7 +470,7 @@ class PracticeStore {
     this.passingCelebration = false
     this.pendingResult = null
     this.levelResult = null
-    this.usedQuestions.clear()
+    this._resetQuestionHistory()
     this.message = ''
     this.messageType = null
   }
@@ -492,7 +503,7 @@ class PracticeStore {
 
   private _resetPracticeState() {
     this.answeredCount = 0
-    this.usedQuestions.clear()
+    this._resetQuestionHistory()
     this.submitting = false
     this.celebrating = false
     this.elapsedMs = 0
@@ -731,6 +742,9 @@ class PracticeStore {
       if (this.question) {
         const elapsedSec = (Date.now() - this.questionShownAt) / 1000
         this._recordAttempt(this.question.a, this.question.b, false, elapsedSec)
+        // 解除本組的「不重複」限制，隔 REPLAY_GAP 題後可以再出現（即時複習）
+        const key = questionKey(this.operation, this.question.a, this.question.b)
+        this.replayAfter.set(key, this.questionsShown + REPLAY_GAP + 1)
       }
     }
     this.quotientInput = ''
@@ -810,8 +824,20 @@ class PracticeStore {
   }
 
   /**
+   * 這一題在本組內能不能出（現在）。沒出過的可以出；出過的只有在答錯後
+   * 登記重播、且已經隔滿 REPLAY_GAP 題時才放行。
+   */
+  private _isSelectable(key: string): boolean {
+    if (!this.usedQuestions.has(key)) return true
+    const due = this.replayAfter.get(key)
+    return due !== undefined && this.questionsShown >= due
+  }
+
+  /**
    * 以 REVIEW_CHANCE 的機率從紀錄裡抽一題複習，抽中哪一題按 difficultyWeight()
    * 加權——答錯過或答得慢的題目權重最高（最不熟的可達最熟的 25 倍）。
+   * 難度分在答完那一刻就更新，所以剛答錯的題目隔幾題後就能以最高權重回來
+   * （即時複習），不必等整組結束。
    * 一般模式與遊戲模式都適用，只要選了玩家就生效。
    * 沒有可用舊題或沒抽中時回傳 null，走一般隨機出題。
    */
@@ -821,7 +847,7 @@ class PracticeStore {
     const candidates = Object.entries(profile.questionStats ?? {}).filter(
       ([key, s]) =>
         s.op === this.operation &&
-        !this.usedQuestions.has(key) &&
+        this._isSelectable(key) &&
         this._inCurrentRange(s.a, s.b),
     )
     if (candidates.length === 0) return null
@@ -850,22 +876,39 @@ class PracticeStore {
   private _generateNonRepeating(): { a: number; b: number } {
     const review = this._pickReviewQuestion()
     if (review) {
-      this.usedQuestions.add(questionKey(this.operation, review.a, review.b))
+      this._markShown(questionKey(this.operation, review.a, review.b))
       return review
     }
     const MAX_TRIES = 100
     for (let i = 0; i < MAX_TRIES; i++) {
       const q = generateQuestion(this.operation, this.minA, this.maxA, this.minB, this.maxB)
       const key = questionKey(this.operation, q.a, q.b)
-      if (!this.usedQuestions.has(key)) {
-        this.usedQuestions.add(key)
+      if (this._isSelectable(key)) {
+        this._markShown(key)
         return q
       }
     }
     // All questions exhausted — allow repeats
     const q = generateQuestion(this.operation, this.minA, this.maxA, this.minB, this.maxB)
-    this.usedQuestions.add(questionKey(this.operation, q.a, q.b))
+    this._markShown(questionKey(this.operation, q.a, q.b))
     return q
+  }
+
+  /**
+   * 登記這一題已經出現。清掉它的重播登記——重播機會用掉了，之後要再出現得
+   * 再答錯一次；不清的話同一題會在到期後每次都被放行。
+   */
+  private _markShown(key: string) {
+    this.usedQuestions.add(key)
+    this.replayAfter.delete(key)
+    this.questionsShown++
+  }
+
+  /** 開新一組時把「本組出過哪些題」的狀態全部歸零。 */
+  private _resetQuestionHistory() {
+    this.usedQuestions.clear()
+    this.replayAfter.clear()
+    this.questionsShown = 0
   }
 }
 
