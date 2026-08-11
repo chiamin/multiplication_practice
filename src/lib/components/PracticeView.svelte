@@ -83,6 +83,13 @@
         第 {practice.currentLevel} 關
       </span>
     </div>
+  {:else if practice.currentProfileName}
+    <!-- 一般模式也顯示是誰在練習，答題紀錄記在這個名字下 -->
+    <div class="flex items-center justify-center">
+      <span class="rounded-full bg-pink-100 px-4 py-1.5 text-base font-semibold text-pink-700">
+        🐰 {practice.currentProfileName}
+      </span>
+    </div>
   {/if}
 
   <!-- Progress bar -->

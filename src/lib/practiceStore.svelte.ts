@@ -2,6 +2,14 @@ import { Operation, FIXED_RANGE_OPERATIONS, type AnswerField } from './types'
 import { generateQuestion } from './questionGenerator'
 import { checkAnswer, checkDivisionAnswer } from './answerChecker'
 import { LEVELS, TOTAL_LEVELS, type LevelConfig } from './levels'
+import {
+  DEFAULT_DIFFICULTY,
+  clamp01,
+  difficultyWeight,
+  isMastered,
+  updateDifficulty,
+  type QuestionStat,
+} from './mastery'
 
 // Normalize commutative operations so (3,5) and (5,3) count as the same question
 function questionKey(op: Operation, a: number, b: number): string {
@@ -113,21 +121,14 @@ export interface LevelResult {
   errorsOk: boolean
 }
 
-// ── Per-name game progress ──
-// 錯題紀錄：key 是 questionKey()，count 是「第一次就答錯」的累積次數。
-// 一次就答對會 -1，減到 0 就移除（畢業）。
-export interface WrongStat {
-  op: Operation
-  a: number
-  b: number
-  count: number
-}
-
+// ── Per-name progress（一般模式與遊戲模式共用同一份 profile）──
+// questionStats：key 是 questionKey()，值是該題的難度分紀錄。
+// 難度分由 mastery.ts 的公式依「答對／答錯」與「花幾秒」更新。
 export interface Profile {
   name: string
   unlockedLevel: number
   flowers: number
-  wrongStats: Record<string, WrongStat>
+  questionStats: Record<string, QuestionStat>
 }
 
 const PROFILES_KEY = 'game.profiles.v1'
@@ -136,30 +137,66 @@ const LEGACY_UNLOCKED_KEY = 'game.unlockedLevel'
 // 每收集滿這麼多朵小花，就進位成 1 顆星星
 const FLOWERS_PER_STAR = 10
 
-// 錯題複習：遊戲模式出題時，若錯題庫有可用的題目，有這個機率抽錯題來複習
-// （抽中哪一題按 count 加權——錯越多次越常出現）。
+// 複習機率：出題時若紀錄裡有可用的舊題，有這個機率改抽舊題來複習
+// （抽中哪一題按 mastery.ts 的難度權重加權——越不熟越常出現）。
 const REVIEW_CHANCE = 0.4
-// 單題錯誤計數上限，避免權重無限膨脹
-const MAX_WRONG_COUNT = 9
 
 const OPERATION_VALUES = new Set<string>(Object.values(Operation))
 
-function sanitizeWrongStats(raw: unknown): Record<string, WrongStat> {
+function sanitizeQuestionStats(raw: unknown): Record<string, QuestionStat> {
   if (!raw || typeof raw !== 'object') return {}
-  const out: Record<string, WrongStat> = {}
+  const out: Record<string, QuestionStat> = {}
   for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
-    const s = v as Partial<WrongStat> | null
+    const s = v as Partial<QuestionStat> | null
+    if (
+      s &&
+      typeof s.op === 'string' && OPERATION_VALUES.has(s.op) &&
+      typeof s.a === 'number' && Number.isFinite(s.a) &&
+      typeof s.b === 'number' && Number.isFinite(s.b) &&
+      typeof s.difficulty === 'number' && Number.isFinite(s.difficulty)
+    ) {
+      out[key] = {
+        op: s.op as Operation,
+        a: s.a,
+        b: s.b,
+        difficulty: clamp01(s.difficulty),
+        attempts: typeof s.attempts === 'number' && s.attempts >= 0 ? Math.floor(s.attempts) : 0,
+        wrongs: typeof s.wrongs === 'number' && s.wrongs >= 0 ? Math.floor(s.wrongs) : 0,
+        lastSec:
+          typeof s.lastSec === 'number' && Number.isFinite(s.lastSec) && s.lastSec >= 0
+            ? s.lastSec
+            : null,
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * 舊版 wrongStats（{count: n}）轉成新的難度分紀錄，讓已經在用的孩子不會
+ * 因為改公式而清空進度。count 越大代表越不熟，對應到越高的難度分。
+ */
+function migrateWrongStats(raw: unknown): Record<string, QuestionStat> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, QuestionStat> = {}
+  for (const [key, v] of Object.entries(raw as Record<string, unknown>)) {
+    const s = v as { op?: unknown; a?: unknown; b?: unknown; count?: unknown } | null
     if (
       s &&
       typeof s.op === 'string' && OPERATION_VALUES.has(s.op) &&
       typeof s.a === 'number' && typeof s.b === 'number' &&
       typeof s.count === 'number' && s.count > 0
     ) {
+      const count = Math.min(9, Math.floor(s.count))
       out[key] = {
         op: s.op as Operation,
         a: s.a,
         b: s.b,
-        count: Math.min(MAX_WRONG_COUNT, Math.floor(s.count)),
+        // count 1 → 0.6、2 → 0.7 …… 逐步逼近 0.95，維持「錯過的題目優先」
+        difficulty: clamp01(0.5 + count * 0.1),
+        attempts: count,
+        wrongs: count,
+        lastSec: null,
       }
     }
   }
@@ -178,12 +215,19 @@ function loadProfiles(): Profile[] {
             (p): p is Profile =>
               p && typeof p.name === 'string' && typeof p.unlockedLevel === 'number',
           )
-          .map((p) => ({
-            name: p.name,
-            unlockedLevel: Math.min(Math.max(1, p.unlockedLevel), TOTAL_LEVELS + 1),
-            flowers: typeof p.flowers === 'number' && p.flowers >= 0 ? Math.floor(p.flowers) : 0,
-            wrongStats: sanitizeWrongStats((p as Partial<Profile>).wrongStats),
-          }))
+          .map((p) => {
+            const anyP = p as Partial<Profile> & { wrongStats?: unknown }
+            // 新欄位優先；只有舊版 wrongStats 的資料就轉換過來
+            const stats = anyP.questionStats
+              ? sanitizeQuestionStats(anyP.questionStats)
+              : migrateWrongStats(anyP.wrongStats)
+            return {
+              name: p.name,
+              unlockedLevel: Math.min(Math.max(1, p.unlockedLevel), TOTAL_LEVELS + 1),
+              flowers: typeof p.flowers === 'number' && p.flowers >= 0 ? Math.floor(p.flowers) : 0,
+              questionStats: stats,
+            }
+          })
       }
     }
     // Migrate from old single-profile key if present
@@ -192,7 +236,7 @@ function loadProfiles(): Profile[] {
       const n = parseInt(legacy)
       if (!isNaN(n) && n >= 1) {
         const migrated: Profile[] = [
-          { name: '小朋友', unlockedLevel: Math.min(n, TOTAL_LEVELS + 1), flowers: 0, wrongStats: {} },
+          { name: '小朋友', unlockedLevel: Math.min(n, TOTAL_LEVELS + 1), flowers: 0, questionStats: {} },
         ]
         saveProfiles(migrated)
         localStorage.removeItem(LEGACY_UNLOCKED_KEY)
@@ -261,6 +305,9 @@ class PracticeStore {
   private usedQuestions = new Set<string>()
   startTime = 0
   private currentQuestionWrong = false
+  // 這一題出現在畫面上的時刻，用來算「花幾秒答出來」餵給難度分公式。
+  // 每次 _nextQuestion() 重設；答錯後不重設，所以慢慢試錯的時間會累計進去。
+  private questionShownAt = 0
   // Result computed when a level is passed; held aside while the celebration
   // plays, then promoted to levelResult when the animation finishes.
   private pendingResult: LevelResult | null = null
@@ -313,8 +360,36 @@ class PracticeStore {
     const name = rawName.trim()
     if (!name) return
     if (this.profiles.find((p) => p.name === name)) return
-    this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, wrongStats: {} }]
+    this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, questionStats: {} }]
     saveProfiles(this.profiles)
+  }
+
+  /**
+   * 選一個玩家（首頁的第一步），兩種模式都用這個身分記錄答題狀況。
+   * profile 不存在就建立。傳 null 表示不指定玩家（此時不會累積紀錄）。
+   * 只切換身分，不進入任何模式。
+   */
+  selectProfile(rawName: string | null) {
+    // Unlock audio FIRST while we're still synchronously inside the user's
+    // click handler — iOS Safari needs the play() call to happen before any
+    // significant work (storage writes, reactive re-renders) drains the gesture.
+    unlockSounds()
+    if (rawName === null) {
+      this.currentProfileName = null
+      this.unlockedLevel = 1
+      this.prevUnlockedLevel = 1
+      return
+    }
+    const name = rawName.trim()
+    if (!name) return
+    if (!this.profiles.find((p) => p.name === name)) {
+      this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, questionStats: {} }]
+      saveProfiles(this.profiles)
+    }
+    const profile = this.profiles.find((p) => p.name === name)!
+    this.currentProfileName = name
+    this.unlockedLevel = profile.unlockedLevel
+    this.prevUnlockedLevel = profile.unlockedLevel
   }
 
   /**
@@ -324,21 +399,16 @@ class PracticeStore {
   startGameMode(rawName: string) {
     const name = rawName.trim()
     if (!name) return
-    // Unlock audio FIRST while we're still synchronously inside the user's
-    // click handler — iOS Safari needs the play() call to happen before any
-    // significant work (storage writes, reactive re-renders) drains the gesture.
-    unlockSounds()
-    if (!this.profiles.find((p) => p.name === name)) {
-      this.profiles = [...this.profiles, { name, unlockedLevel: 1, flowers: 0, wrongStats: {} }]
-      saveProfiles(this.profiles)
-    }
-    const profile = this.profiles.find((p) => p.name === name)!
-    this.currentProfileName = name
-    this.unlockedLevel = profile.unlockedLevel
-    this.prevUnlockedLevel = profile.unlockedLevel
+    this.selectProfile(name)
     this.gameMode = true
     this.view = 'map'
     this.levelResult = null
+  }
+
+  /** 用目前已選的玩家進遊戲模式（首頁已先選好名字的流程）。 */
+  enterGameMode() {
+    if (!this.currentProfileName) return
+    this.startGameMode(this.currentProfileName)
   }
 
   deleteProfile(name: string) {
@@ -349,6 +419,25 @@ class PracticeStore {
       this.unlockedLevel = 1
       this.prevUnlockedLevel = 1
     }
+  }
+
+  /** 清掉目前玩家的答題紀錄（難度分歸零重新來）。 */
+  resetCurrentStats() {
+    const name = this.currentProfileName
+    if (!name) return
+    this.profiles = this.profiles.map((p) =>
+      p.name === name ? { ...p, questionStats: {} } : p,
+    )
+    saveProfiles(this.profiles)
+  }
+
+  /** 目前玩家在目前運算下、還沒熟練的題數（給首頁顯示）。 */
+  get reviewPoolSize(): number {
+    const profile = this._currentProfile()
+    if (!profile) return 0
+    return Object.values(profile.questionStats ?? {}).filter(
+      (s) => s.op === this.operation && this._inCurrentRange(s.a, s.b),
+    ).length
   }
 
   returnToSettings() {
@@ -506,9 +595,13 @@ class PracticeStore {
   }
 
   private async _onCorrect() {
-    // 一次就答對：錯題計數 -1，答對夠多次就從錯題庫畢業
-    if (!this.currentQuestionWrong && this.question) {
-      this._updateWrongStat(this.question.a, this.question.b, -1)
+    // 記錄這題花了幾秒。只有「一次就答對」才算表現好；先答錯又改對的，
+    // 難度分已在 _onWrong 推高，這裡不讓它靠最後一次答對抵銷掉。
+    if (this.question) {
+      const elapsedSec = (Date.now() - this.questionShownAt) / 1000
+      if (!this.currentQuestionWrong) {
+        this._recordAttempt(this.question.a, this.question.b, true, elapsedSec)
+      }
     }
     this._setMessage('答對了！太棒了 🎉', 'correct')
     playSound('ding')
@@ -634,9 +727,10 @@ class PracticeStore {
     if (!this.currentQuestionWrong) {
       this.currentQuestionWrong = true
       this.firstTryWrongs++
-      // 第一次答錯才記入錯題庫（同一題重複按錯不重複計）
+      // 第一次答錯才記錄（同一題重複按錯不重複計），難度分會被推到高位
       if (this.question) {
-        this._updateWrongStat(this.question.a, this.question.b, +1)
+        const elapsedSec = (Date.now() - this.questionShownAt) / 1000
+        this._recordAttempt(this.question.a, this.question.b, false, elapsedSec)
       }
     }
     this.quotientInput = ''
@@ -658,6 +752,7 @@ class PracticeStore {
     this.messageType = null
     this.activeField = 'quotient'
     this.currentQuestionWrong = false
+    this.questionShownAt = Date.now()
   }
 
   // ── 錯題複習 ──
@@ -666,24 +761,39 @@ class PracticeStore {
     return this.profiles.find((p) => p.name === this.currentProfileName) ?? null
   }
 
-  /** 遊戲模式中調整目前題目的錯題計數（delta = +1 答錯 / -1 一次就答對）。 */
-  private _updateWrongStat(a: number, b: number, delta: number) {
+  /**
+   * 記錄一次作答結果並更新該題的難度分（見 mastery.ts 的公式）。
+   * 一般模式與遊戲模式共用同一份 profile 紀錄——在一般模式常錯的題目，
+   * 進遊戲模式也會比較常出現，反之亦然。
+   * 沒選玩家時（沒有身分可掛）就不記錄。
+   */
+  private _recordAttempt(a: number, b: number, correct: boolean, elapsedSec: number) {
     const name = this.currentProfileName
-    if (!this.gameMode || !name) return
+    if (!name) return
     const key = questionKey(this.operation, a, b)
     const op = this.operation
     this.profiles = this.profiles.map((p) => {
       if (p.name !== name) return p
-      const stats = { ...(p.wrongStats ?? {}) }
-      const prev = stats[key]?.count ?? 0
-      const next = Math.min(MAX_WRONG_COUNT, Math.max(0, prev + delta))
-      if (next === prev) return p
-      if (next === 0) {
+      const stats = { ...(p.questionStats ?? {}) }
+      const prev = stats[key]
+      const prevDifficulty = prev?.difficulty ?? DEFAULT_DIFFICULTY
+      const difficulty = updateDifficulty(prevDifficulty, correct, elapsedSec)
+      // 熟練到門檻以下就移除，紀錄不會無限長大
+      if (isMastered(difficulty)) {
+        if (!prev) return p
         delete stats[key]
-      } else {
-        stats[key] = { op, a, b, count: next }
+        return { ...p, questionStats: stats }
       }
-      return { ...p, wrongStats: stats }
+      stats[key] = {
+        op,
+        a,
+        b,
+        difficulty,
+        attempts: (prev?.attempts ?? 0) + 1,
+        wrongs: (prev?.wrongs ?? 0) + (correct ? 0 : 1),
+        lastSec: correct ? Math.round(elapsedSec * 10) / 10 : (prev?.lastSec ?? null),
+      }
+      return { ...p, questionStats: stats }
     })
     saveProfiles(this.profiles)
   }
@@ -700,28 +810,31 @@ class PracticeStore {
   }
 
   /**
-   * 遊戲模式下，以 REVIEW_CHANCE 的機率從錯題庫抽一題複習（按錯誤次數加權，
-   * 錯越多次越容易被抽中）。沒有可用錯題或沒抽中時回傳 null，走一般隨機出題。
+   * 以 REVIEW_CHANCE 的機率從紀錄裡抽一題複習，抽中哪一題按 difficultyWeight()
+   * 加權——答錯過或答得慢的題目權重最高（最不熟的可達最熟的 25 倍）。
+   * 一般模式與遊戲模式都適用，只要選了玩家就生效。
+   * 沒有可用舊題或沒抽中時回傳 null，走一般隨機出題。
    */
   private _pickReviewQuestion(): { a: number; b: number } | null {
     const profile = this._currentProfile()
-    if (!this.gameMode || !profile) return null
-    const candidates = Object.entries(profile.wrongStats ?? {}).filter(
+    if (!profile) return null
+    const candidates = Object.entries(profile.questionStats ?? {}).filter(
       ([key, s]) =>
         s.op === this.operation &&
-        s.count > 0 &&
         !this.usedQuestions.has(key) &&
         this._inCurrentRange(s.a, s.b),
     )
     if (candidates.length === 0) return null
     if (Math.random() >= REVIEW_CHANCE) return null
-    const total = candidates.reduce((sum, [, s]) => sum + s.count, 0)
+    const weights = candidates.map(([, s]) => difficultyWeight(s.difficulty))
+    const total = weights.reduce((sum, w) => sum + w, 0)
+    if (total <= 0) return null
     let r = Math.random() * total
     let picked = candidates[candidates.length - 1][1]
-    for (const [, s] of candidates) {
-      r -= s.count
+    for (let i = 0; i < candidates.length; i++) {
+      r -= weights[i]
       if (r < 0) {
-        picked = s
+        picked = candidates[i][1]
         break
       }
     }
