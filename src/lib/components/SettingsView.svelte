@@ -108,7 +108,19 @@
     Operation.Divide,
     Operation.AddCarry,
     Operation.SubtractBorrow,
+    Operation.MultiplyZero,
   ]
+
+  // 帶零乘法選下去時，兩個數字的範圍直接帶入 11~999（預設的 2~9 裡沒有帶 0 的數字）
+  function selectOperation(op: Operation) {
+    practice.operation = op
+    if (op === Operation.MultiplyZero) {
+      practice.minA = 11
+      practice.maxA = 999
+      practice.minB = 11
+      practice.maxB = 999
+    }
+  }
 
   // 進位加法／借位減法的題目由規則決定，數字範圍設定用不到，直接藏起來。
   const fixedRange = $derived(FIXED_RANGE_OPERATIONS.includes(practice.operation))
@@ -211,7 +223,7 @@
   <!-- Operation selector -->
   <section>
     <p class="mb-2 text-base font-semibold text-slate-600">要練習的運算</p>
-    <div class="grid grid-cols-3 gap-2">
+    <div class="grid grid-cols-4 gap-2">
       {#each operations as op}
         {@const selected = practice.operation === op}
         <button
@@ -219,7 +231,7 @@
             {selected
               ? 'border-blue-500 bg-blue-50 text-blue-700'
               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}"
-          onclick={() => (practice.operation = op)}
+          onclick={() => selectOperation(op)}
         >
           <img
             src="{BASE}assets/icons/{OPERATION_ICON[op]}"

@@ -47,6 +47,34 @@ function generateMultiplication(minA: number, maxA: number, minB: number, maxB: 
   return { a: randomInt(minA, maxA), b: randomInt(minB, maxB) }
 }
 
+// 帶零乘法：兩個因數中至少一個帶 0（例如 20、101、300），另一個不限。
+function splitByZero(min: number, max: number): { zero: number[]; other: number[] } {
+  if (min > max) [min, max] = [max, min]
+  const zero: number[] = []
+  const other: number[] = []
+  for (let n = min; n <= max; n++) (String(n).includes('0') ? zero : other).push(n)
+  return { zero, other }
+}
+
+function pick(nums: number[]): number {
+  return nums[Math.floor(Math.random() * nums.length)]
+}
+
+// 沿用設定頁的範圍（上限 999，直接列舉就好），在所有合格的 (a, b) 組合中均勻抽一組：
+// 合格組合 = 「a 帶 0、b 任意」加上「a 不帶 0、b 帶 0」，兩塊不重疊，按組合數決定抽哪塊。
+// 兩個範圍都沒有帶 0 的數字（例如 11~19 × 1~9）時，退回一般乘法。
+function generateMultiplyWithZero(minA: number, maxA: number, minB: number, maxB: number) {
+  const A = splitByZero(minA, maxA)
+  const B = splitByZero(minB, maxB)
+  const aZeroPairs = A.zero.length * (B.zero.length + B.other.length)
+  const bZeroPairs = A.other.length * B.zero.length
+  if (aZeroPairs + bZeroPairs === 0) return generateMultiplication(minA, maxA, minB, maxB)
+  if (Math.random() * (aZeroPairs + bZeroPairs) < aZeroPairs) {
+    return { a: pick(A.zero), b: pick([...B.zero, ...B.other]) }
+  }
+  return { a: pick(A.other), b: pick(B.zero) }
+}
+
 function generateDivision(minA: number, maxA: number, minB: number, maxB: number) {
   const MAX_TRIES = 500
 
@@ -87,6 +115,7 @@ export function generateQuestion(
     case Operation.Subtract: return generateSubtraction(minA, maxA, minB, maxB)
     case Operation.Multiply: return generateMultiplication(minA, maxA, minB, maxB)
     case Operation.Divide:   return generateDivision(minA, maxA, minB, maxB)
+    case Operation.MultiplyZero:    return generateMultiplyWithZero(minA, maxA, minB, maxB)
     // 這兩種靠規則決定範圍，不吃設定頁的 min/max
     case Operation.AddCarry:        return generateAddWithCarry()
     case Operation.SubtractBorrow:  return generateSubtractWithBorrow()

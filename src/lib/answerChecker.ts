@@ -12,6 +12,7 @@ export function checkAnswer(
     case Operation.Subtract:       return userAnswer === a - b
     case Operation.SubtractBorrow: return userAnswer === a - b
     case Operation.Multiply:       return userAnswer === a * b
+    case Operation.MultiplyZero:   return userAnswer === a * b
     case Operation.Divide:   throw new Error('Use checkDivisionAnswer for division')
   }
 }

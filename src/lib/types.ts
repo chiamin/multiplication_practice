@@ -7,6 +7,8 @@ export enum Operation {
   AddCarry = 'add-carry',
   // 兩位數 − 個位數，個位不夠減（一定要借位），例如 71 − 3
   SubtractBorrow = 'subtract-borrow',
+  // 乘法，兩個因數中至少一個帶 0，例如 304 × 7、20 × 36
+  MultiplyZero = 'multiply-zero',
 }
 
 export const OPERATION_SYMBOL: Record<Operation, string> = {
@@ -16,6 +18,7 @@ export const OPERATION_SYMBOL: Record<Operation, string> = {
   [Operation.Divide]: '÷',
   [Operation.AddCarry]: '+',
   [Operation.SubtractBorrow]: '−',
+  [Operation.MultiplyZero]: '×',
 }
 
 export const OPERATION_LABEL: Record<Operation, string> = {
@@ -25,6 +28,7 @@ export const OPERATION_LABEL: Record<Operation, string> = {
   [Operation.Divide]: '除法',
   [Operation.AddCarry]: '進位加法',
   [Operation.SubtractBorrow]: '借位減法',
+  [Operation.MultiplyZero]: '帶零乘法',
 }
 
 export const OPERATION_ICON: Record<Operation, string> = {
@@ -34,6 +38,7 @@ export const OPERATION_ICON: Record<Operation, string> = {
   [Operation.Divide]: 'divide.png',
   [Operation.AddCarry]: 'add.png',
   [Operation.SubtractBorrow]: 'subtract.png',
+  [Operation.MultiplyZero]: 'multiply.png',
 }
 
 // 這兩種模式的題目由規則決定（一定進位／一定借位），忽略設定頁的數字範圍。

@@ -13,7 +13,12 @@ import {
 
 // Normalize commutative operations so (3,5) and (5,3) count as the same question
 function questionKey(op: Operation, a: number, b: number): string {
-  if (op === Operation.Add || op === Operation.AddCarry || op === Operation.Multiply) {
+  if (
+    op === Operation.Add ||
+    op === Operation.AddCarry ||
+    op === Operation.Multiply ||
+    op === Operation.MultiplyZero
+  ) {
     const [lo, hi] = a <= b ? [a, b] : [b, a]
     return `${op}:${lo},${hi}`
   }
@@ -817,7 +822,11 @@ class PracticeStore {
     if (FIXED_RANGE_OPERATIONS.includes(this.operation)) return true
     const fits = (x: number, min: number, max: number) => x >= min && x <= max
     const direct = fits(a, this.minA, this.maxA) && fits(b, this.minB, this.maxB)
-    if (this.operation === Operation.Add || this.operation === Operation.Multiply) {
+    if (
+      this.operation === Operation.Add ||
+      this.operation === Operation.Multiply ||
+      this.operation === Operation.MultiplyZero
+    ) {
       return direct || (fits(b, this.minA, this.maxA) && fits(a, this.minB, this.maxB))
     }
     return direct
@@ -868,7 +877,8 @@ class PracticeStore {
     const commutative =
       this.operation === Operation.Add ||
       this.operation === Operation.AddCarry ||
-      this.operation === Operation.Multiply
+      this.operation === Operation.Multiply ||
+      this.operation === Operation.MultiplyZero
     if (commutative && Math.random() < 0.5) return { a: picked.b, b: picked.a }
     return { a: picked.a, b: picked.b }
   }
