@@ -111,15 +111,20 @@
     Operation.MultiplyZero,
   ]
 
-  // 帶零乘法選下去時，兩個數字的範圍直接帶入 11~999（預設的 2~9 裡沒有帶 0 的數字）
+  // 帶零乘法選下去時，兩個數字的範圍直接帶入 11~999（預設的 2~9 裡沒有帶 0 的數字）；
+  // 從帶零乘法切到別的運算時，範圍恢復成預設的 2~9，不讓 11~999 留到其他運算。
+  function setRanges(min: number, max: number) {
+    practice.minA = min
+    practice.maxA = max
+    practice.minB = min
+    practice.maxB = max
+  }
+
   function selectOperation(op: Operation) {
+    const prev = practice.operation
     practice.operation = op
-    if (op === Operation.MultiplyZero) {
-      practice.minA = 11
-      practice.maxA = 999
-      practice.minB = 11
-      practice.maxB = 999
-    }
+    if (op === Operation.MultiplyZero) setRanges(11, 999)
+    else if (prev === Operation.MultiplyZero) setRanges(2, 9)
   }
 
   // 進位加法／借位減法的題目由規則決定，數字範圍設定用不到，直接藏起來。
